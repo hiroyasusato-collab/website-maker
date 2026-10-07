@@ -78,15 +78,27 @@ def build_keyword_section(
             notes.append(note)
 
     in_window = aggregate.within_window(collected, since, until)
+    # 1サイトあたりの上限を守って TOP10 を選ぶ（AI業界トレンドセクションでは使わない）。
+    articles = aggregate.pick_top(in_window, used_urls, max_per_site=settings.max_per_site)
+
+    # 他のサイトの記事が足りず、上限を超えて埋めた場合は実行した人に知らせる。
+    if settings.max_per_site > 0:
+        over = {
+            site: count
+            for site, count in aggregate.count_by_site(articles).items()
+            if count > settings.max_per_site
+        }
+        if over:
+            logger.info(
+                "%s: 他のサイトの記事が足りないため、1サイトの上限（%d件）を超えて埋めました: %s",
+                keyword,
+                settings.max_per_site,
+                "、".join(f"{site} {count}件" for site, count in over.items()),
+            )
+
     return Section(
         heading=keyword,
-        rankings=[
-            Ranking(
-                score_label=LABEL_LIKES,
-                articles=aggregate.pick_top(in_window, used_urls),
-                notes=notes,
-            )
-        ],
+        rankings=[Ranking(score_label=LABEL_LIKES, articles=articles, notes=notes)],
     )
 
 

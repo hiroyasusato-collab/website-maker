@@ -14,7 +14,14 @@ from typing import Any
 import pytest
 
 from src.config import Settings
-from src.models import LABEL_BOOKMARKS, LABEL_LIKES, LABEL_POINTS, SITE_QIITA, SITE_ZENN
+from src.models import (
+    LABEL_BOOKMARKS,
+    LABEL_LIKES,
+    LABEL_POINTS,
+    SITE_NOTE,
+    SITE_QIITA,
+    SITE_ZENN,
+)
 from src.pipeline import TREND_HEADING, build_page
 from src.sources import hackernews, note_com, qiita, zenn
 from tests.conftest import load_fixture_json, load_fixture_text
@@ -32,6 +39,8 @@ def settings(tmp_path: Path) -> Settings:
         output_dir=tmp_path / "docs",
         qiita_token=None,
         hatena_min_users=10,
+        # 0 = 上限なし。ここまでのテストの期待値を変えないため。
+        max_per_site=0,
     )
 
 
@@ -142,6 +151,198 @@ def test_トレンドセクションもスコア順になる(settings: Settings,
     for ranking in page.sections[-1].rankings:
         scores = [a.score for a in ranking.articles]
         assert scores == sorted(scores, reverse=True)
+
+
+# ---------- 1サイトあたりの上限 ----------
+
+
+class ManyArticlesJson:
+    """Zenn・Qiita・note がそれぞれ10件返す偽の取得関数。
+
+    note のいいね数を一番大きくして、note が独占しようとする状況を作る。
+    """
+
+    def __call__(self, url: str, **kwargs: Any) -> Any:
+        params = kwargs.get("params", {})
+        page = params.get("page")
+        start = params.get("start")
+
+        if url == zenn.SEARCH_URL:
+            if page != 1:
+                return {"articles": []}
+            return {
+                "articles": [
+                    {
+                        "title": f"Claude Code zenn{i}",
+                        "path": f"/u/articles/zenn{i}",
+                        "published_at": "2026-10-05T12:00:00.000+09:00",
+                        "liked_count": 100 - i,
+                    }
+                    for i in range(10)
+                ]
+            }
+        if url == qiita.ITEMS_URL:
+            if page != 1:
+                return []
+            return [
+                {
+                    "title": f"Claude Code qiita{i}",
+                    "url": f"https://qiita.com/u/items/{i:032d}",
+                    "likes_count": 50 - i,
+                    "created_at": "2026-10-05T12:00:00+09:00",
+                }
+                for i in range(10)
+            ]
+        if url == note_com.SEARCH_URL:
+            if start != 0:
+                return {"data": {"notes": {"contents": []}}}
+            return {
+                "data": {
+                    "notes": {
+                        "contents": [
+                            {
+                                "name": f"Claude Code note{i}",
+                                "key": f"n{i:012d}",
+                                "publish_at": "2026-10-05T12:00:00.000+09:00",
+                                # note のいいね数を一番大きくする。
+                                "like_count": 1000 - i,
+                                "user": {"urlname": "someone"},
+                            }
+                            for i in range(10)
+                        ]
+                    }
+                }
+            }
+        if url == hackernews.SEARCH_URL:
+            return load_fixture_json("hn_search.json") if page == 0 else {"hits": []}
+        raise AssertionError(f"知らない URL: {url}")
+
+
+def _site_counts(articles: list[Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for article in articles:
+        counts[article.site] = counts.get(article.site, 0) + 1
+    return counts
+
+
+def test_1サイトの上限が効く(tmp_path: Path, reference: datetime) -> None:
+    """note がいいね数で上位を占めても、4件までに抑えて他のサイトを拾う。"""
+    settings = Settings(
+        keywords=["Claude Code"],
+        trend_words=TREND_WORDS,
+        output_dir=tmp_path / "docs",
+        qiita_token=None,
+        hatena_min_users=10,
+        max_per_site=4,
+    )
+    page = build_page(settings, ManyArticlesJson(), FakeText(), reference)
+    articles = page.sections[0].rankings[0].articles
+
+    assert len(articles) == 10
+    counts = _site_counts(articles)
+    assert counts[SITE_NOTE] == 4, "note は上限の4件まで"
+    assert counts[SITE_ZENN] == 4
+    assert counts[SITE_QIITA] == 2
+    # いいね数順は保たれている。
+    scores = [a.score for a in articles]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_上限なしならnoteが独占する(tmp_path: Path, reference: datetime) -> None:
+    """上限を入れる前の動き。この偏りを直すための変更であることを示す。"""
+    settings = Settings(
+        keywords=["Claude Code"],
+        trend_words=TREND_WORDS,
+        output_dir=tmp_path / "docs",
+        qiita_token=None,
+        hatena_min_users=10,
+        max_per_site=0,
+    )
+    page = build_page(settings, ManyArticlesJson(), FakeText(), reference)
+    articles = page.sections[0].rankings[0].articles
+    assert _site_counts(articles) == {SITE_NOTE: 10}
+
+
+def test_上限はAI業界トレンドセクションには効かない(tmp_path: Path, reference: datetime) -> None:
+    """はてブ TOP10 と HN TOP10 はそれぞれ別の表なので対象外（要件のとおり）。
+
+    1つの表の記事は全部同じサイトなので、上限が効いてしまうと4件に削られる。
+    """
+    settings = Settings(
+        keywords=["Claude Code"],
+        trend_words=TREND_WORDS,
+        output_dir=tmp_path / "docs",
+        qiita_token=None,
+        hatena_min_users=10,
+        max_per_site=4,
+    )
+
+    class ManyHnJson(ManyArticlesJson):
+        def __call__(self, url: str, **kwargs: Any) -> Any:
+            if url == hackernews.SEARCH_URL:
+                if kwargs.get("params", {}).get("page") != 0:
+                    return {"hits": []}
+                # AI 関連の投稿を6件返す（上限4件より多い）。
+                return {
+                    "hits": [
+                        {
+                            "objectID": str(i),
+                            "title": f"AI breakthrough {i}",
+                            "url": f"https://example.com/hn{i}",
+                            "points": 100 - i,
+                            "created_at_i": 1791292549,
+                        }
+                        for i in range(6)
+                    ]
+                }
+            return super().__call__(url, **kwargs)
+
+    page = build_page(settings, ManyHnJson(), FakeText(), reference)
+    hn_articles = page.sections[-1].rankings[1].articles
+
+    assert len(hn_articles) == 6, "HN の表が上限で削られていないこと"
+
+
+def test_取得元が失敗したら上限を超えて埋める(tmp_path: Path, reference: datetime) -> None:
+    """Qiita と Zenn が失敗して note しか残らない場合、4件ではなく10件出す。"""
+    settings = Settings(
+        keywords=["Claude Code"],
+        trend_words=TREND_WORDS,
+        output_dir=tmp_path / "docs",
+        qiita_token=None,
+        hatena_min_users=10,
+        max_per_site=4,
+    )
+
+    class OnlyNote(ManyArticlesJson):
+        def __call__(self, url: str, **kwargs: Any) -> Any:
+            if url in (zenn.SEARCH_URL, qiita.ITEMS_URL):
+                raise RuntimeError("接続できません")
+            return super().__call__(url, **kwargs)
+
+    page = build_page(settings, OnlyNote(), FakeText(), reference)
+    articles = page.sections[0].rankings[0].articles
+
+    # 上限（4件）を超えて10件埋める。
+    assert len(articles) == 10
+    assert _site_counts(articles) == {SITE_NOTE: 10}
+
+
+def test_記事が上限より少なければそのまま出す(tmp_path: Path, reference: datetime) -> None:
+    settings = Settings(
+        keywords=["Claude Code"],
+        trend_words=TREND_WORDS,
+        output_dir=tmp_path / "docs",
+        qiita_token=None,
+        hatena_min_users=10,
+        max_per_site=4,
+    )
+    page = build_page(settings, FakeJson(), FakeText(), reference)
+    articles = page.sections[0].rankings[0].articles
+
+    # fixture は各サイト数件なので、上限に当たらずそのまま出る。
+    assert articles
+    assert all(count <= 4 for count in _site_counts(articles).values())
 
 
 # ---------- 重複の除去（要件4） ----------

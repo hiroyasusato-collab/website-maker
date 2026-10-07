@@ -16,6 +16,11 @@ OUTPUT_DIR = PROJECT_ROOT / "docs"
 # はてブ検索で除外するブックマーク数のしきい値（.env で変えられる）
 DEFAULT_HATENA_MIN_USERS = 10
 
+# キーワード別セクションの TOP10 で、同じサイトから載せる最大件数（.env で変えられる）。
+# note のスキは Zenn・Qiita のいいねより数が大きくなりやすく、そのまま並べると
+# note が上位を占めてしまうため上限を設ける。0 以下にすると上限なしになる。
+DEFAULT_MAX_PER_SITE = 4
+
 
 class ConfigError(Exception):
     """設定ファイルが読めない・中身が空などの問題。"""
@@ -59,6 +64,7 @@ class Settings:
     output_dir: Path
     qiita_token: str | None
     hatena_min_users: int
+    max_per_site: int
 
 
 def _read_int_env(name: str, default: int) -> int:
@@ -85,4 +91,5 @@ def load_settings(
         output_dir=output_dir,
         qiita_token=token,
         hatena_min_users=_read_int_env("HATENA_MIN_USERS", DEFAULT_HATENA_MIN_USERS),
+        max_per_site=_read_int_env("MAX_PER_SITE", DEFAULT_MAX_PER_SITE),
     )

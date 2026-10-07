@@ -8,14 +8,16 @@ import pytest
 
 from src.aggregate import (
     TOP_N,
+    count_by_site,
     dedupe_within,
     exclude_used,
     normalize_url,
     pick_top,
     rank,
+    select_with_site_cap,
     within_window,
 )
-from src.models import SITE_QIITA, SITE_ZENN, Article
+from src.models import SITE_NOTE, SITE_QIITA, SITE_ZENN, Article
 from src.timeutil import JST
 
 BASE = datetime(2026, 10, 5, 12, 0, tzinfo=JST)
@@ -227,6 +229,196 @@ def test_セクション内の重複もまとめる() -> None:
         used,
     )
     assert len(result) == 1
+
+
+# ---------- 1サイトあたりの上限 ----------
+
+
+def _from(site: str, title: str, score: int) -> Article:
+    return Article(
+        title=title,
+        url=f"https://example.com/{site}/{title}",
+        score=score,
+        published_at=BASE,
+        site=site,
+    )
+
+
+def test_同じサイトからは上限までしか載せない() -> None:
+    """note のスキは数が大きくなりやすいので、1サイトの件数に上限を設ける。
+
+    キーワード別セクションの取得元は Zenn・Qiita・note の3つ。
+    上限4件なら 4+4+4=12 ≥ 10 なので、上限を超えずに TOP10 を埋められる。
+    """
+    # note がいいね数で上位を独占している状況を作る。
+    articles = [_from(SITE_NOTE, f"note{i}", 1000 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, f"zenn{i}", 100 - i) for i in range(10)]
+    articles += [_from(SITE_QIITA, f"qiita{i}", 50 - i) for i in range(10)]
+
+    result = select_with_site_cap(articles, limit=10, max_per_site=4)
+
+    counts = count_by_site(result)
+    assert len(result) == 10
+    assert counts[SITE_NOTE] == 4, "note は上限の4件まで"
+    assert counts[SITE_ZENN] == 4
+    assert counts[SITE_QIITA] == 2
+    # どのサイトも上限を超えていない。
+    assert all(count <= 4 for count in counts.values())
+
+
+def test_上限なしならnoteが独占する() -> None:
+    """上限を入れる前の動き。これを避けるための変更であることを示す。"""
+    articles = [_from(SITE_NOTE, f"note{i}", 1000 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, f"zenn{i}", 100 - i) for i in range(10)]
+    articles += [_from(SITE_QIITA, f"qiita{i}", 50 - i) for i in range(10)]
+
+    result = select_with_site_cap(articles, limit=10, max_per_site=0)
+    assert count_by_site(result) == {SITE_NOTE: 10}
+
+
+def test_サイトが2つしかなければ上限を超えて埋める() -> None:
+    """取得元が1つ失敗したときの動き。
+
+    サイト2つ × 上限4件 = 8件しか上限内で選べないので、残り2件は上限を超えて埋める。
+    8件で止めるより、いいね数の多い記事を10件出すほうがよいと判断した。
+    """
+    articles = [_from(SITE_NOTE, f"note{i}", 1000 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, f"zenn{i}", 100 - i) for i in range(10)]
+
+    result = select_with_site_cap(articles, limit=10, max_per_site=4)
+
+    counts = count_by_site(result)
+    assert len(result) == 10
+    assert counts[SITE_ZENN] == 4
+    # 足りない2件は、いいね数の多い note から補われる。
+    assert counts[SITE_NOTE] == 6
+
+
+def test_上限で飛ばした分は他のサイトで埋める() -> None:
+    articles = [
+        _from(SITE_NOTE, "note1", 500),
+        _from(SITE_NOTE, "note2", 400),
+        _from(SITE_NOTE, "note3", 300),
+        _from(SITE_ZENN, "zenn1", 50),
+        _from(SITE_QIITA, "qiita1", 40),
+    ]
+    result = select_with_site_cap(articles, limit=4, max_per_site=2)
+
+    titles = [a.title for a in result]
+    # note は上位2件だけ。残りは Zenn と Qiita で埋まる。
+    assert titles == ["note1", "note2", "zenn1", "qiita1"]
+
+
+def test_上限を守ったうえでいいね数順に並ぶ() -> None:
+    articles = [
+        _from(SITE_NOTE, "note1", 500),
+        _from(SITE_NOTE, "note2", 400),
+        _from(SITE_NOTE, "note3", 300),
+        _from(SITE_ZENN, "zenn1", 450),
+        _from(SITE_ZENN, "zenn2", 350),
+    ]
+    result = select_with_site_cap(articles, limit=4, max_per_site=2)
+
+    # note は上位2件、Zenn は上位2件。表示はいいね数順。
+    assert [a.title for a in result] == ["note1", "zenn1", "note2", "zenn2"]
+    scores = [a.score for a in result]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_他のサイトの記事が無ければ上限を超えて埋める() -> None:
+    """上限は独占を防ぐためのもの。他に出せる記事が無いなら件数を減らさない。"""
+    articles = [_from(SITE_NOTE, f"note{i}", 100 - i) for i in range(7)]
+
+    result = select_with_site_cap(articles, limit=10, max_per_site=4)
+
+    # 7件すべて出す（4件に絞らない）。
+    assert len(result) == 7
+    assert count_by_site(result)[SITE_NOTE] == 7
+
+
+def test_足りない分だけ上限を超えて埋める() -> None:
+    articles = [_from(SITE_NOTE, f"note{i}", 100 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, "zenn1", 1)]
+
+    result = select_with_site_cap(articles, limit=10, max_per_site=4)
+
+    counts = count_by_site(result)
+    assert len(result) == 10
+    assert counts[SITE_ZENN] == 1
+    assert counts[SITE_NOTE] == 9
+
+
+def test_上限を超えて埋めるときもいいね数順になる() -> None:
+    articles = [_from(SITE_NOTE, f"note{i}", 100 - i) for i in range(6)]
+    result = select_with_site_cap(articles, limit=6, max_per_site=2)
+
+    assert [a.title for a in result] == ["note0", "note1", "note2", "note3", "note4", "note5"]
+
+
+@pytest.mark.parametrize("cap", [0, -1])
+def test_上限を0以下にすると上限なしになる(cap: int) -> None:
+    articles = [_from(SITE_NOTE, f"note{i}", 100 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, "zenn1", 1)]
+
+    result = select_with_site_cap(articles, limit=10, max_per_site=cap)
+
+    # いいね数順にそのまま上位10件（note だけになる）。
+    assert count_by_site(result)[SITE_NOTE] == 10
+
+
+def test_上限が件数より大きければ何も変わらない() -> None:
+    articles = [_from(SITE_NOTE, "note1", 10), _from(SITE_ZENN, "zenn1", 5)]
+    assert select_with_site_cap(articles, limit=10, max_per_site=99) == rank(articles, 10)
+
+
+def test_記事が無くても落ちない() -> None:
+    assert select_with_site_cap([], limit=10, max_per_site=4) == []
+
+
+def test_サイトごとの件数を数える() -> None:
+    articles = [
+        _from(SITE_NOTE, "a", 1),
+        _from(SITE_NOTE, "b", 1),
+        _from(SITE_ZENN, "c", 1),
+    ]
+    assert count_by_site(articles) == {SITE_NOTE: 2, SITE_ZENN: 1}
+
+
+def test_pick_topに上限を渡せる() -> None:
+    articles = [_from(SITE_NOTE, f"note{i}", 1000 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, f"zenn{i}", 100 - i) for i in range(10)]
+    articles += [_from(SITE_QIITA, f"qiita{i}", 50 - i) for i in range(10)]
+
+    used: set[str] = set()
+    result = pick_top(articles, used, limit=10, max_per_site=4)
+
+    assert count_by_site(result)[SITE_NOTE] == 4
+    # 載せた10件だけが予約される（上限で飛ばした note の記事は後のセクションに残る）。
+    assert len(used) == 10
+
+
+def test_pick_topは上限を指定しなければ絞らない() -> None:
+    articles = [_from(SITE_NOTE, f"note{i}", 1000 - i) for i in range(10)]
+    articles += [_from(SITE_ZENN, "zenn1", 1)]
+
+    used: set[str] = set()
+    result = pick_top(articles, used, limit=10)
+
+    assert count_by_site(result)[SITE_NOTE] == 10
+
+
+def test_上限で飛ばした記事は後のセクションに残る() -> None:
+    """上限で載らなかった記事も「載っていない」ので、後のセクションに出てよい。"""
+    articles = [_from(SITE_NOTE, f"note{i}", 100 - i) for i in range(6)]
+    articles += [_from(SITE_ZENN, f"zenn{i}", 50 - i) for i in range(6)]
+
+    used: set[str] = set()
+    first = pick_top(articles, used, limit=4, max_per_site=2)
+    assert [a.title for a in first] == ["note0", "note1", "zenn0", "zenn1"]
+
+    # 同じ候補をもう一度渡すと、まだ載っていない記事が出る。
+    second = pick_top(articles, used, limit=4, max_per_site=2)
+    assert [a.title for a in second] == ["note2", "note3", "zenn2", "zenn3"]
 
 
 def test_取得元が混ざっても並べ替えられる() -> None:

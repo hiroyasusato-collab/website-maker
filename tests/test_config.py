@@ -64,6 +64,7 @@ def test_設定をまとめて読む(tmp_path: Path, monkeypatch: pytest.MonkeyP
     words = _write(tmp_path, "ai_trend_words.txt", "AI\nLLM\n")
     monkeypatch.delenv("QIITA_TOKEN", raising=False)
     monkeypatch.delenv("HATENA_MIN_USERS", raising=False)
+    monkeypatch.delenv("MAX_PER_SITE", raising=False)
 
     settings = load_settings(keywords, words, tmp_path / "docs")
 
@@ -71,6 +72,7 @@ def test_設定をまとめて読む(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert settings.trend_words == ["AI", "LLM"]
     assert settings.qiita_token is None
     assert settings.hatena_min_users == 10
+    assert settings.max_per_site == 4
 
 
 def test_環境変数を読む(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,11 +80,35 @@ def test_環境変数を読む(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     words = _write(tmp_path, "ai_trend_words.txt", "AI\n")
     monkeypatch.setenv("QIITA_TOKEN", "  abc123  ")
     monkeypatch.setenv("HATENA_MIN_USERS", "30")
+    monkeypatch.setenv("MAX_PER_SITE", "2")
 
     settings = load_settings(keywords, words, tmp_path / "docs")
 
     assert settings.qiita_token == "abc123"
     assert settings.hatena_min_users == 30
+    assert settings.max_per_site == 2
+
+
+@pytest.mark.parametrize("raw", ["", "   ", "よっつ", "4.5"])
+def test_1サイトの上限が数字でなければ既定値を使う(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw: str
+) -> None:
+    keywords = _write(tmp_path, "keywords.txt", "RAG\n")
+    words = _write(tmp_path, "ai_trend_words.txt", "AI\n")
+    monkeypatch.setenv("MAX_PER_SITE", raw)
+
+    settings = load_settings(keywords, words, tmp_path / "docs")
+    assert settings.max_per_site == 4
+
+
+def test_1サイトの上限に0を指定できる(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """0 は「上限なし」の意味。既定値に戻してはいけない。"""
+    keywords = _write(tmp_path, "keywords.txt", "RAG\n")
+    words = _write(tmp_path, "ai_trend_words.txt", "AI\n")
+    monkeypatch.setenv("MAX_PER_SITE", "0")
+
+    settings = load_settings(keywords, words, tmp_path / "docs")
+    assert settings.max_per_site == 0
 
 
 @pytest.mark.parametrize("raw", ["", "   ", "たくさん", "10.5"])

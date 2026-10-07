@@ -95,10 +95,66 @@ def rank(articles: Iterable[Article], limit: int = TOP_N) -> list[Article]:
     return ordered[:limit]
 
 
+def select_with_site_cap(
+    articles: Iterable[Article],
+    limit: int = TOP_N,
+    max_per_site: int = 0,
+) -> list[Article]:
+    """いいね数順に上位 limit 件を選ぶ。ただし同じサイトからは max_per_site 件まで。
+
+    note のスキ（いいね）は読者層が広く押されやすく、技術者向けの Zenn・Qiita より
+    数が大きくなりやすい。そのまま並べると note が上位を占めてしまうため、
+    1サイトあたりの件数に上限を設けて他のサイトの記事を拾えるようにする。
+
+    max_per_site が 0 以下のときは上限なし（この絞り込みをしない）。
+
+    **他のサイトの記事を使い切っても limit に満たない場合は、上限を超えて埋める。**
+    上限は「1つのサイトが独占しないようにする」ためのもので、他に出せる記事が
+    無いなら件数を減らす意味がない。たとえば M365 のように note しか記事が無い
+    キーワードで、7件あるのに4件しか出さないのは情報が減るだけになる。
+    """
+    ordered = sorted(articles, key=lambda a: (-a.score, -a.published_at.timestamp(), a.title))
+
+    if max_per_site <= 0:
+        return ordered[:limit]
+
+    chosen: list[Article] = []
+    skipped: list[Article] = []
+    per_site: dict[str, int] = {}
+
+    # 1回目：上限を守りながら、いいね数の多い順に取る。
+    for article in ordered:
+        if len(chosen) >= limit:
+            break
+        if per_site.get(article.site, 0) >= max_per_site:
+            skipped.append(article)
+            continue
+        chosen.append(article)
+        per_site[article.site] = per_site.get(article.site, 0) + 1
+
+    # 2回目：まだ limit に届かないなら、上限で飛ばした記事で埋める。
+    for article in skipped:
+        if len(chosen) >= limit:
+            break
+        chosen.append(article)
+
+    # 表示はいいね数順にそろえる。
+    return sorted(chosen, key=lambda a: (-a.score, -a.published_at.timestamp(), a.title))
+
+
+def count_by_site(articles: Iterable[Article]) -> dict[str, int]:
+    """サイトごとの件数を数える。上限を超えて埋めたかどうかの確認に使う。"""
+    counts: dict[str, int] = {}
+    for article in articles:
+        counts[article.site] = counts.get(article.site, 0) + 1
+    return counts
+
+
 def pick_top(
     articles: Iterable[Article],
     used_urls: set[str],
     limit: int = TOP_N,
+    max_per_site: int = 0,
 ) -> list[Article]:
     """1つのセクションに載せる記事を決める。
 
@@ -107,13 +163,13 @@ def pick_top(
 
       1. すでに他のセクションに「載った」記事を除く
       2. セクション内の重複を1件にまとめる
-      3. いいね数順に並べて上位 limit 件を取る
+      3. いいね数順に並べて上位 limit 件を取る（1サイトあたりの上限を守る）
       4. 実際に載せた記事の URL だけを used_urls に加える
 
     の順で処理する。4 を最後に行うのが大事で、ここで候補すべてを used_urls に入れて
     しまうと、載らなかった記事まで後のセクションから消えてしまう。
     """
     candidates = dedupe_within(exclude_used(articles, used_urls))
-    top = rank(candidates, limit)
+    top = select_with_site_cap(candidates, limit, max_per_site)
     used_urls.update(normalize_url(a.url) for a in top)
     return top
