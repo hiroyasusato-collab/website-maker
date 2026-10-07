@@ -115,6 +115,32 @@ def test_JSONでない応答は分かるエラーにする() -> None:
         fetcher.json("https://example.com")
 
 
+def test_やり直しを止められる() -> None:
+    """X のように1回の通信ごとにお金がかかる取得元のため。"""
+    fetcher, session = _fetcher([RuntimeError("失敗")])
+    with pytest.raises(FetchError):
+        fetcher.json("https://example.com", retries=0)
+    assert len(session.calls) == 1, "やり直さないこと"
+
+
+def test_やり直し回数を指定できる() -> None:
+    fetcher, session = _fetcher([RuntimeError("失敗")] * 2)
+    with pytest.raises(FetchError):
+        fetcher.json("https://example.com", retries=1)
+    assert len(session.calls) == 2
+
+
+def test_エラーに例外の本文を載せない() -> None:
+    """例外の本文には送ったヘッダ（合言葉）が含まれることがある。"""
+    fetcher, _ = _fetcher([RuntimeError("Bearer SECRET-TOKEN-123 が不正です")])
+    with pytest.raises(FetchError) as info:
+        fetcher.json("https://example.com", retries=0)
+
+    message = str(info.value)
+    assert "SECRET-TOKEN-123" not in message, "合言葉が漏れてはいけない"
+    assert "RuntimeError" in message, "原因の種類は分かるようにする"
+
+
 def test_連続アクセスの間に待ちを入れる(monkeypatch: pytest.MonkeyPatch) -> None:
     waited: list[float] = []
     monkeypatch.setattr("src.fetcher.time.sleep", lambda seconds: waited.append(seconds))

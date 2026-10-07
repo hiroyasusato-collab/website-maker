@@ -20,6 +20,7 @@ SITE_QIITA = "Qiita"
 SITE_NOTE = "note"
 SITE_HATENA = "はてなブックマーク"
 SITE_HACKER_NEWS = "Hacker News"
+SITE_X = "X"
 
 # 「いいね数」列の見出し。取得元によって数え方が違うので呼び分ける。
 LABEL_LIKES = "いいね"
@@ -54,10 +55,15 @@ class Ranking:
 
 @dataclass
 class Section:
-    """見出し1つ分。"""
+    """見出し1つ分。
+
+    is_trend は AI業界トレンドのセクションだけ True。
+    ページの作りが違うため（見出しの下に表が4つ並ぶ）、表示のときに見分ける。
+    """
 
     heading: str
     rankings: list[Ranking] = field(default_factory=list)
+    is_trend: bool = False
 
 
 @dataclass

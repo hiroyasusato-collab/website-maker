@@ -46,6 +46,8 @@ class RecordingFetch:
         self._pages = list(pages)
         self._last = last
         self.calls: list[tuple[str, dict[str, Any], dict[str, str]]] = []
+        # 呼び出しごとの retries 指定。X が「やり直さない」ことを確かめるのに使う。
+        self.retries: list[int | None] = []
 
     def __call__(
         self,
@@ -53,8 +55,10 @@ class RecordingFetch:
         *,
         params: Mapping[str, Any] | None = None,
         headers: Mapping[str, str] | None = None,
+        retries: int | None = None,
     ) -> Any:
         self.calls.append((url, dict(params or {}), dict(headers or {})))
+        self.retries.append(retries)
         if self._pages:
             return self._pages.pop(0)
         return self._last

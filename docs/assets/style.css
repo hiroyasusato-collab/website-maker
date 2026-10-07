@@ -1,4 +1,5 @@
-/* シンプルな一覧（要件6）。会社PCのブラウザで見るだけなので外部読み込みはしない。 */
+/* シンプルな一覧（要件6）。会社PCのブラウザで見るだけなので外部読み込みはしない。
+   表は横に2つずつ並べ、画面が狭いときは1列に戻す。 */
 
 :root {
   --text: #1a1a1a;
@@ -6,6 +7,7 @@
   --line: #ddd;
   --head-bg: #f5f5f5;
   --link: #0b5cad;
+  --card-line: #e5e5e5;
   --note-bg: #fff6e5;
   --note-line: #e0a800;
 }
@@ -16,8 +18,9 @@
 
 body {
   margin: 0 auto;
-  padding: 24px 16px 64px;
-  max-width: 980px;
+  /* 2列に並べるので、1列だったときより広くとる */
+  padding: 24px 20px 64px;
+  max-width: 1280px;
   color: var(--text);
   font-family: "Yu Gothic UI", "Yu Gothic", "Meiryo", system-ui, sans-serif;
   font-size: 15px;
@@ -41,29 +44,46 @@ h1 {
   margin: 4px 0 0;
 }
 
+/* 大見出し（AI業界トレンド／キーワード別）。2列の上にまたがる */
 h2 {
   font-size: 18px;
-  margin: 32px 0 8px;
+  margin: 32px 0 12px;
   padding-left: 8px;
   border-left: 5px solid var(--text);
 }
 
+/* 表ごとの見出し（はてなブックマーク／Claude Code など） */
 h3 {
   font-size: 15px;
-  margin: 16px 0 6px;
-  color: var(--muted);
+  margin: 0 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 2px solid var(--line);
+}
+
+/* ---- 2列に並べる ---- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+  /* 行の高さは、その行で背の高い方にそろう（左右の見出しが並ぶ） */
+  align-items: start;
+}
+
+.card {
+  min-width: 0; /* 長いタイトルが列幅を押し広げるのを防ぐ */
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   margin-bottom: 8px;
 }
 
 th,
 td {
   border-bottom: 1px solid var(--line);
-  padding: 7px 8px;
+  padding: 7px 6px;
   text-align: left;
   vertical-align: top;
 }
@@ -71,8 +91,9 @@ td {
 thead th {
   background: var(--head-bg);
   border-bottom: 2px solid var(--line);
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
+  color: var(--muted);
 }
 
 tbody tr:hover {
@@ -87,33 +108,36 @@ a:hover {
   text-decoration: none;
 }
 
-/* 列幅。タイトル列に残りを割り当て、数字と日付は折り返さない。 */
+/* 列幅。幅が半分になるので、タイトルに最大限まわす。 */
 .col-rank {
-  width: 3.5em;
+  width: 2.6em;
   text-align: right;
   color: var(--muted);
   white-space: nowrap;
-}
-
-.col-site {
-  width: 9em;
-  white-space: nowrap;
-  color: var(--muted);
   font-size: 13px;
 }
 
+.col-title {
+  /* 残り幅をすべて使う。長い英単語や URL でも必ず折り返す。 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 一番長い見出し「ブックマーク」と、6桁のいいね数が収まる幅にする。
+   table-layout: fixed なので、足りないと中身が隣の列にはみ出す。 */
 .col-score {
-  width: 5.5em;
+  width: 5.8em;
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-.col-date {
-  width: 7em;
-  white-space: nowrap;
+/* サイト名と投稿日。列にせずタイトルの下に小さく出す。 */
+.meta {
+  display: block;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 /* 取得に失敗した取得元の説明（要件5：黙って消さずに残す） */
@@ -144,10 +168,21 @@ footer {
   font-size: 12px;
 }
 
-/* 画面が狭いとき（スマホなど）は、サイト名と投稿日を隠して横スクロールを防ぐ */
-@media (max-width: 560px) {
-  .col-site,
-  .col-date {
-    display: none;
+/* 画面が狭いとき（スマホ・タブレット縦など）は1列に戻す */
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+
+/* 印刷するときも1列にして、表が切れないようにする */
+@media print {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  a {
+    color: var(--text);
   }
 }

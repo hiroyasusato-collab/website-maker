@@ -1,5 +1,41 @@
 {#- 1回分のページ。index.html とバックナンバーで同じものを使う。
-    autoescape を有効にしているので、記事タイトルの < > & は自動で安全な形になる。 -#}
+    autoescape を有効にしているので、記事タイトルの < > & は自動で安全な形になる。
+
+    表は横に2つずつ並べる（CSS の grid で2列）。画面が狭いときは style.css 側で1列に戻る。
+    表が1つしかない行でも grid が自動で左から詰めるので、特別な指定は要らない。 -#}
+
+{#- 表1つ分の中身（小見出し・取得失敗の説明・表）。card で囲むのは呼ぶ側。 -#}
+{%- macro table_body(ranking) -%}
+  {% for note in ranking.notes %}
+  <p class="note">{{ note }}</p>
+  {% endfor %}
+  {% if ranking.articles %}
+  <table>
+    <thead>
+      <tr>
+        <th class="col-rank">順位</th>
+        <th class="col-title">記事タイトル</th>
+        <th class="col-score">{{ ranking.score_label }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for article in ranking.articles %}
+      <tr>
+        <td class="col-rank">{{ loop.index }}</td>
+        <td class="col-title">
+          <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a>
+          {#- 表の幅が半分になるので、サイト名と投稿日は列にせずタイトルの下に小さく置く -#}
+          <span class="meta">{{ article.site }}・{{ article.published_at.strftime('%Y-%m-%d') }}</span>
+        </td>
+        <td class="col-score">{{ article.score }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif not ranking.notes %}
+  <p class="empty">この期間に該当する記事はありませんでした。</p>
+  {% endif %}
+{%- endmacro -%}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -17,45 +53,36 @@
 </header>
 
 <main>
-{% for section in page.sections %}
+{#- AI業界トレンド：見出し1つの下に、はてブ・HN・X の表が2列で並ぶ -#}
+{% for section in page.sections if section.is_trend %}
   <section>
     <h2>{{ section.heading }}</h2>
-    {% for ranking in section.rankings %}
-      {% if ranking.caption %}<h3>{{ ranking.caption }}</h3>{% endif %}
-
-      {% for note in ranking.notes %}
-        <p class="note">{{ note }}</p>
+    <div class="grid">
+      {% for ranking in section.rankings %}
+      <div class="card">
+        {% if ranking.caption %}<h3>{{ ranking.caption }}</h3>{% endif %}
+        {{ table_body(ranking) }}
+      </div>
       {% endfor %}
-
-      {% if ranking.articles %}
-      <table>
-        <thead>
-          <tr>
-            <th class="col-rank">順位</th>
-            <th class="col-title">記事タイトル</th>
-            <th class="col-site">サイト名</th>
-            <th class="col-score">{{ ranking.score_label }}</th>
-            <th class="col-date">投稿日</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for article in ranking.articles %}
-          <tr>
-            <td class="col-rank">{{ loop.index }}</td>
-            <td class="col-title"><a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a></td>
-            <td class="col-site">{{ article.site }}</td>
-            <td class="col-score">{{ article.score }}</td>
-            <td class="col-date">{{ article.published_at.strftime('%Y-%m-%d') }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% elif not ranking.notes %}
-      <p class="empty">この期間に該当する記事はありませんでした。</p>
-      {% endif %}
-    {% endfor %}
+    </div>
   </section>
 {% endfor %}
+
+{#- キーワード別：セクションそのものを2列で並べる（並びは display_order.txt） -#}
+{% set keyword_sections = page.sections | rejectattr('is_trend') | list %}
+{% if keyword_sections %}
+  <section>
+    <h2>キーワード別</h2>
+    <div class="grid">
+      {% for section in keyword_sections %}
+      <div class="card">
+        <h3>{{ section.heading }}</h3>
+        {% for ranking in section.rankings %}{{ table_body(ranking) }}{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
 
 {% if backnumbers %}
   <section class="backnumbers">

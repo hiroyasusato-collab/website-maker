@@ -6,7 +6,9 @@ main() 自体はネットにつなぐので呼ばない。画面に出す内容�
 
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -84,6 +86,47 @@ def test_失敗が無ければ失敗の見出しを出さない(capsys: pytest.C
     )
     _report(page)
     assert "取得できなかったもの" not in capsys.readouterr().out
+
+
+def test_envが環境変数より優先される(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """X の停止スイッチが確実に効くようにするため。
+
+    既定では .env より OS 側の環境変数が優先されるので、どこかに X_ENABLED=true が
+    残っていると、.env を false にしても止まらなくなる。
+    """
+    import src.main as main_module
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("X_ENABLED=false\n", encoding="utf-8")
+    monkeypatch.setattr(main_module, "_PROJECT_ROOT", tmp_path)
+    # OS 側に true が残っている状況を作る。
+    monkeypatch.setenv("X_ENABLED", "true")
+
+    main_module._load_dotenv()
+
+    assert os.environ["X_ENABLED"] == "false", ".env の指定が勝つこと"
+
+
+def test_メモ帳で保存したenvでも停止スイッチが効く(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows のメモ帳で保存すると先頭に BOM が付く。
+
+    既定の読み方だと1行目の項目名が「(BOM)X_ENABLED」として読まれ、
+    1行目に書いた X_ENABLED=false が効かなくなる（＝止めたつもりで課金される）。
+    """
+    import src.main as main_module
+
+    env_file = tmp_path / ".env"
+    # utf-8-sig = メモ帳が付ける BOM 付きの保存形式。X_ENABLED を1行目に置く。
+    env_file.write_text("X_ENABLED=false\nX_MAX_POSTS=100\n", encoding="utf-8-sig")
+    monkeypatch.setattr(main_module, "_PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv("X_ENABLED", "true")
+
+    main_module._load_dotenv()
+
+    assert os.environ["X_ENABLED"] == "false", "BOM 付きでも止まること"
+    assert os.environ["X_MAX_POSTS"] == "100"
 
 
 def test_表の小見出しがあればそれを使う(capsys: pytest.CaptureFixture[str]) -> None:

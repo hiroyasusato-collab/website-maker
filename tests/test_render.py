@@ -85,6 +85,7 @@ def test_取得元ごとに数の見出しを変える() -> None:
     """はてブは「ブックマーク」、HN は「ポイント」。数え方が違うので呼び分ける。"""
     section = Section(
         heading="AI業界トレンド",
+        is_trend=True,
         rankings=[
             Ranking(
                 caption="はてブ",
@@ -104,8 +105,10 @@ def test_取得元ごとに数の見出しを変える() -> None:
 
 
 def test_表の小見出しが出る() -> None:
+    """表ごとの小見出しは AI業界トレンドのセクションで使う。"""
     section = Section(
         heading="AI業界トレンド",
+        is_trend=True,
         rankings=[
             Ranking(
                 caption="はてなブックマーク（ブックマーク数順）",
@@ -124,6 +127,121 @@ def test_表の小見出しが出る() -> None:
     )
     html = render_html(_page([section]), page_title="テスト")
     assert "はてなブックマーク（ブックマーク数順）" in html
+
+
+# ---------- 2列に並べる ----------
+
+
+def test_トレンドの表を2列の枠に入れる() -> None:
+    """CSS の grid で2列にするので、表が grid の中に入っていること。"""
+    section = Section(
+        heading="AI業界トレンド",
+        is_trend=True,
+        rankings=[
+            Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA)),
+            Ranking(caption="HN", score_label=LABEL_POINTS, articles=_one("b", "Hacker News")),
+        ],
+    )
+    html = render_html(_page([section]), page_title="テスト")
+
+    assert '<div class="grid">' in html
+    assert html.count('<div class="card">') == 2
+
+
+def test_キーワード別も2列の枠に入れる() -> None:
+    sections = [
+        Section(
+            heading=name,
+            rankings=[Ranking(score_label=LABEL_LIKES, articles=_one(name, SITE_ZENN))],
+        )
+        for name in ("M365", "ChatGPT", "RAG")
+    ]
+    html = render_html(_page(sections), page_title="テスト")
+
+    assert "キーワード別" in html
+    assert html.count('<div class="card">') == 3
+
+
+def test_キーワード別の見出しが設定した順に並ぶ() -> None:
+    sections = [
+        Section(
+            heading=name,
+            rankings=[Ranking(score_label=LABEL_LIKES, articles=_one(name, SITE_ZENN))],
+        )
+        for name in ("M365", "ChatGPT", "RAG", "Claude")
+    ]
+    html = render_html(_page(sections), page_title="テスト")
+
+    positions = [html.index(f"<h3>{name}</h3>") for name in ("M365", "ChatGPT", "RAG", "Claude")]
+    assert positions == sorted(positions), "セクションが渡した順に出ること"
+
+
+def test_トレンドがキーワード別より先に出る() -> None:
+    trend = Section(
+        heading="AI業界トレンド",
+        is_trend=True,
+        rankings=[
+            Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA))
+        ],
+    )
+    keyword = Section(
+        heading="M365", rankings=[Ranking(score_label=LABEL_LIKES, articles=_one("b", SITE_ZENN))]
+    )
+    # わざと順番を逆に渡しても、ページ上はトレンドが先に出る。
+    html = render_html(_page([keyword, trend]), page_title="テスト")
+
+    assert html.index("AI業界トレンド") < html.index("キーワード別")
+
+
+def test_トレンドが無ければ見出しを出さない() -> None:
+    keyword = Section(
+        heading="M365", rankings=[Ranking(score_label=LABEL_LIKES, articles=_one("b", SITE_ZENN))]
+    )
+    html = render_html(_page([keyword]), page_title="テスト")
+
+    assert "AI業界トレンド" not in html
+    assert "キーワード別" in html
+
+
+def test_キーワード別が無ければ見出しを出さない() -> None:
+    trend = Section(
+        heading="AI業界トレンド",
+        is_trend=True,
+        rankings=[
+            Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA))
+        ],
+    )
+    html = render_html(_page([trend]), page_title="テスト")
+
+    assert "AI業界トレンド" in html
+    assert "キーワード別" not in html
+
+
+def test_サイト名と投稿日はタイトルの下に出す() -> None:
+    """表の幅が半分になるので、列にせずタイトルの下に小さく置く。"""
+    html = render_html(_page(), page_title="テスト")
+
+    assert '<span class="meta">Zenn・2026-10-05</span>' in html
+    # 列としては出さない。
+    assert '<th class="col-site">' not in html
+    assert '<th class="col-date">' not in html
+
+
+def test_表の列は3つ() -> None:
+    html = render_html(_page(), page_title="テスト")
+
+    assert '<th class="col-rank">順位</th>' in html
+    assert '<th class="col-title">記事タイトル</th>' in html
+    assert f'<th class="col-score">{LABEL_LIKES}</th>' in html
+
+
+def test_1列に戻す指定がスタイルに入っている() -> None:
+    """画面が狭いときに1列に戻ること（CSS 側の指定）。"""
+    from src.render import STYLE_SOURCE
+
+    css = STYLE_SOURCE.read_text(encoding="utf-8")
+    assert "@media (max-width:" in css
+    assert "grid-template-columns: repeat(2" in css
 
 
 # ---------- エスケープ（ここが壊れるとページが読めなくなる） ----------

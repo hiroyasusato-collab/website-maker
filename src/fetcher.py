@@ -25,7 +25,11 @@ class FetchError(Exception):
 
 
 class JsonFetch(Protocol):
-    """JSON を取ってくる関数の形。"""
+    """JSON を取ってくる関数の形。
+
+    retries に 0 を渡すと、失敗してもやり直さない。X のように「1回の通信ごとに
+    お金がかかる」取得元で使う（やり直すと二重に課金される恐れがある）。
+    """
 
     def __call__(
         self,
@@ -33,6 +37,7 @@ class JsonFetch(Protocol):
         *,
         params: Mapping[str, Any] | None = None,
         headers: Mapping[str, str] | None = None,
+        retries: int | None = None,
     ) -> Any: ...
 
 
@@ -80,9 +85,11 @@ class HttpFetcher:
         url: str,
         params: Mapping[str, Any] | None,
         headers: Mapping[str, str] | None,
+        retries: int | None = None,
     ) -> requests.Response:
+        attempts = MAX_RETRIES if retries is None else max(0, retries)
         last_error: Exception | None = None
-        for attempt in range(MAX_RETRIES + 1):
+        for attempt in range(attempts + 1):
             self._wait_turn()
             try:
                 response = self._session.get(
@@ -92,9 +99,13 @@ class HttpFetcher:
                 return response
             except Exception as error:  # noqa: BLE001 - 種類を問わずやり直す
                 last_error = error
-                if attempt < MAX_RETRIES:
+                if attempt < attempts:
                     time.sleep(2**attempt)
-        raise FetchError(f"{url} の取得に失敗しました: {last_error}") from last_error
+        # 例外の本文には、送ったヘッダ（合言葉）が含まれることがある。
+        # そのままログに出さないよう、種類だけを載せる。
+        raise FetchError(
+            f"{url} の取得に失敗しました（{type(last_error).__name__}）"
+        ) from last_error
 
     def json(
         self,
@@ -102,8 +113,9 @@ class HttpFetcher:
         *,
         params: Mapping[str, Any] | None = None,
         headers: Mapping[str, str] | None = None,
+        retries: int | None = None,
     ) -> Any:
-        response = self._get(url, params, headers)
+        response = self._get(url, params, headers, retries)
         try:
             return response.json()
         except ValueError as error:

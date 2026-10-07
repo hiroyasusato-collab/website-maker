@@ -22,19 +22,23 @@ from src.models import (
     SITE_HATENA,
     SITE_NOTE,
     SITE_QIITA,
+    SITE_X,
     SITE_ZENN,
     Article,
     Page,
     Ranking,
     Section,
 )
-from src.sources import hackernews, hatena, note_com, qiita, zenn
+from src.sources import hackernews, hatena, note_com, qiita, x_posts, zenn
 from src.timeutil import now_jst, period_end, period_start, to_date
 from src.trend_filter import filter_ai_related, is_ai_related
 
 logger = logging.getLogger(__name__)
 
 TREND_HEADING = "AI業界トレンド"
+
+# X の表の見出しに使う言語名。
+X_LANGUAGE_LABELS = {"ja": "日本語", "en": "英語"}
 
 
 def _safe_collect(
@@ -165,7 +169,75 @@ def build_trend_section(
         )
     )
 
-    return Section(heading=TREND_HEADING, rankings=rankings)
+    # --- X（旧 Twitter）---
+    # お金がかかる取得元なので、止まっているときは接続そのものを行わず、表も出さない。
+    if settings.x_enabled:
+        rankings.extend(_build_x_rankings(since, until, settings, fetch_json))
+    else:
+        logger.info("X は止めてあります（.env の X_ENABLED）。接続せず、表も出しません。")
+
+    return Section(heading=TREND_HEADING, rankings=rankings, is_trend=True)
+
+
+def _build_x_rankings(
+    since: datetime,
+    until: datetime,
+    settings: Settings,
+    fetch_json: JsonFetch,
+) -> list[Ranking]:
+    """X の表を言語ごとに作る（日本語・英語）。
+
+    読み取り件数の枠（budget）は**日本語・英語で1つを共有する**。
+    言語ごとに別の枠にすると、合計が X_MAX_POSTS を超えてしまう。
+    """
+    rankings: list[Ranking] = []
+    budget = x_posts.PostBudget(settings.x_max_posts)
+
+    for lang in x_posts.LANGUAGES:
+        label = X_LANGUAGE_LABELS.get(lang, lang)
+        articles, note = _safe_collect(
+            f"{SITE_X}（{label}）",
+            lambda lang=lang: x_posts.collect(  # type: ignore[misc]
+                lang,
+                settings.trend_words,
+                fetch_json,
+                settings.x_bearer_token,
+                budget,
+                settings.x_require_link,
+            ),
+        )
+        rankings.append(
+            Ranking(
+                caption=f"{SITE_X}（{label}・いいね数順）",
+                score_label=LABEL_LIKES,
+                articles=aggregate.pick_top(aggregate.within_window(articles, since, until), set()),
+                notes=[note] if note else [],
+            )
+        )
+    return rankings
+
+
+def arrange_for_display(keywords: list[str], display_order: list[str]) -> list[str]:
+    """キーワードを「ページに出す順番」に並べ替える。
+
+    display_order.txt に書かれた順を先に使い、**書かれていないキーワードは末尾に足す**。
+    キーワードを増やしたときに display_order.txt へ書き忘れても、ページから消えない。
+    display_order.txt にしか無いキーワード（keywords.txt から消したものなど）は無視する。
+
+    この並べ替えは**表示だけ**に効く。どの記事がどのセクションに載るかを決める
+    優先順は keywords.txt の順のままで変わらない（要件4）。
+    """
+    remaining = list(keywords)
+    ordered: list[str] = []
+
+    for keyword in display_order:
+        if keyword in remaining:
+            remaining.remove(keyword)
+            ordered.append(keyword)
+
+    # display_order.txt に無いものは、keywords.txt の順で末尾に足す。
+    ordered.extend(remaining)
+    return ordered
 
 
 def build_page(
@@ -174,7 +246,12 @@ def build_page(
     fetch_text: TextFetch,
     reference: datetime | None = None,
 ) -> Page:
-    """1回分のページを組み立てる。"""
+    """1回分のページを組み立てる。
+
+    集めるのは keywords.txt の順（＝重複を省く優先順）で行い、
+    そのあと表示用に並べ替える。この2つを分けておくことが大事で、
+    表示の並びを変えても「どの記事がどのセクションに載るか」は変わらない。
+    """
     reference = reference or now_jst()
     since = period_start(reference)
     until = period_end(reference)
@@ -187,11 +264,19 @@ def build_page(
     # 要件4：先に書かれたセクションに載った記事を覚えておき、後のセクションでは省く。
     used_urls: set[str] = set()
 
-    sections = [
-        build_keyword_section(keyword, since, until, settings, fetch_json, used_urls)
+    # 1) keywords.txt の順に集める（優先順）
+    by_keyword = {
+        keyword: build_keyword_section(keyword, since, until, settings, fetch_json, used_urls)
         for keyword in settings.keywords
-    ]
-    sections.append(build_trend_section(since, until, settings, fetch_json, fetch_text))
+    }
+
+    # 2) 表示用に並べ替える
+    display_keywords = arrange_for_display(settings.keywords, settings.display_order)
+    keyword_sections = [by_keyword[keyword] for keyword in display_keywords]
+
+    # AI業界トレンドを先に出し、そのあとキーワード別セクションを並べる。
+    sections = [build_trend_section(since, until, settings, fetch_json, fetch_text)]
+    sections.extend(keyword_sections)
 
     return Page(
         target_date=to_date(reference),

@@ -25,6 +25,9 @@ from src.models import Page  # noqa: E402
 from src.pipeline import build_page  # noqa: E402
 from src.render import write_site  # noqa: E402
 
+# X の API の単価（投稿1件の読み取り）。画面に出す費用の目安に使う。
+X_COST_PER_POST = 0.005
+
 
 def _setup_logging() -> None:
     logging.basicConfig(
@@ -35,12 +38,24 @@ def _setup_logging() -> None:
 
 
 def _load_dotenv() -> None:
-    """.env があれば読み込む。無くても動く（合言葉はどちらも省略可）。"""
+    """.env があれば読み込む。無くても動く（合言葉はどちらも省略可）。
+
+    X の停止スイッチを確実に効かせるため、指定を2つ付けている。
+
+    override=True
+        既定では .env より OS 側の環境変数が優先される。どこかに X_ENABLED=true が
+        残っていると、.env を false にしても止まらなくなる。
+
+    encoding="utf-8-sig"
+        Windows のメモ帳で保存すると先頭に BOM が付く。既定の読み方だと1行目の
+        項目名が「X_ENABLED」ではなく「(BOM)X_ENABLED」として読まれてしまい、
+        1行目に書いた X_ENABLED=false が効かない（実際に再現した）。
+    """
     try:
         from dotenv import load_dotenv
     except ImportError:
         return
-    load_dotenv(_PROJECT_ROOT / ".env")
+    load_dotenv(_PROJECT_ROOT / ".env", override=True, encoding="utf-8-sig")
 
 
 def _report(page: Page) -> None:
@@ -77,7 +92,18 @@ def main() -> int:
 
     print(f"キーワード {len(settings.keywords)} 個: {' / '.join(settings.keywords)}")
     print(f"AI判定の単語 {len(settings.trend_words)} 個")
+    print(f"1サイトあたりの上限: {settings.max_per_site or 'なし'} 件")
     print(f"Qiita トークン: {'あり' if settings.qiita_token else 'なし（1時間60回まで）'}")
+    # X は従量課金なので、動かすかどうかと費用の上限を毎回はっきり出す。
+    if settings.x_enabled:
+        print(
+            f"X: 使う（最大 {settings.x_max_posts} 件読み取り＝最大 "
+            f"${settings.x_max_posts * X_COST_PER_POST:.2f}）"
+        )
+        if not settings.x_bearer_token:
+            print("    ※ X_BEARER_TOKEN が未設定です。X は取得できません。")
+    else:
+        print("X: 使わない（.env の X_ENABLED で切り替え）")
     print()
 
     fetcher = HttpFetcher()

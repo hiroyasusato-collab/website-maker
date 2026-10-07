@@ -1,0 +1,105 @@
+{
+  "data": [
+    {
+      "id": "1975000000000000001",
+      "text": "Claude Opus 5.5 のプロンプト設計をまとめました。effort の調整だけで精度がかなり変わります。\nhttps://t.co/abc123",
+      "created_at": "2026-10-05T03:12:45.000Z",
+      "lang": "ja",
+      "public_metrics": {
+        "retweet_count": 120,
+        "reply_count": 18,
+        "like_count": 980,
+        "quote_count": 7,
+        "bookmark_count": 300,
+        "impression_count": 150000
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 60,
+            "end": 83,
+            "url": "https://t.co/abc123",
+            "expanded_url": "https://docs.example.com/claude-prompting",
+            "display_url": "docs.example.com/claude-promp…"
+          }
+        ]
+      }
+    },
+    {
+      "id": "1975000000000000002",
+      "text": "生成AIで社内の問い合わせ対応を作り直した話。\n半年運用して分かったことを書きます。",
+      "created_at": "2026-10-06T11:00:00.000Z",
+      "lang": "ja",
+      "public_metrics": {
+        "retweet_count": 30,
+        "reply_count": 5,
+        "like_count": 450,
+        "quote_count": 1,
+        "bookmark_count": 90,
+        "impression_count": 20000
+      }
+    },
+    {
+      "id": "1975000000000000003",
+      "text": "引用だけの投稿。リンクは X の中だけ。AI の話題です。 https://t.co/quote1",
+      "created_at": "2026-10-04T09:00:00.000Z",
+      "lang": "ja",
+      "public_metrics": {
+        "retweet_count": 2,
+        "reply_count": 0,
+        "like_count": 120,
+        "quote_count": 0,
+        "bookmark_count": 3,
+        "impression_count": 900
+      },
+      "entities": {
+        "urls": [
+          {
+            "url": "https://t.co/quote1",
+            "expanded_url": "https://x.com/someone/status/1970000000000000000",
+            "display_url": "x.com/someone/status…"
+          }
+        ]
+      }
+    },
+    {
+      "id": "1975000000000000004",
+      "text": "今日のお昼はラーメンでした。とてもおいしかったです。",
+      "created_at": "2026-10-05T04:00:00.000Z",
+      "lang": "ja",
+      "public_metrics": {
+        "retweet_count": 0,
+        "reply_count": 0,
+        "like_count": 9999,
+        "quote_count": 0,
+        "bookmark_count": 0,
+        "impression_count": 100
+      }
+    },
+    {
+      "id": "1975000000000000005",
+      "text": "期間より古いAIの投稿（落ちるべき）",
+      "created_at": "2026-09-10T04:00:00.000Z",
+      "lang": "ja",
+      "public_metrics": {
+        "retweet_count": 0,
+        "reply_count": 0,
+        "like_count": 8888,
+        "quote_count": 0,
+        "bookmark_count": 0,
+        "impression_count": 100
+      }
+    },
+    {
+      "id": "1975000000000000006",
+      "text": "日付が無い投稿（落ちるべき）。AI の話。",
+      "lang": "ja",
+      "public_metrics": {"like_count": 7777}
+    }
+  ],
+  "meta": {
+    "newest_id": "1975000000000000002",
+    "oldest_id": "1975000000000000006",
+    "result_count": 6
+  }
+}
