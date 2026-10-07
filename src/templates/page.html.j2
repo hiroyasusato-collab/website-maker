@@ -15,7 +15,10 @@
       <tr>
         <th class="col-rank">順位</th>
         <th class="col-title">記事タイトル</th>
+        {#- 人気の数字が無い取得元（技術評論社）は score_label が None。その場合は列を出さない -#}
+        {% if ranking.score_label %}
         <th class="col-score">{{ ranking.score_label }}</th>
+        {% endif %}
       </tr>
     </thead>
     <tbody>
@@ -27,7 +30,9 @@
           {#- 表の幅が半分になるので、サイト名と投稿日は列にせずタイトルの下に小さく置く -#}
           <span class="meta">{{ article.site }}・{{ article.published_at.strftime('%Y-%m-%d') }}</span>
         </td>
+        {% if ranking.score_label %}
         <td class="col-score">{{ article.score }}</td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -35,6 +40,21 @@
   {% elif not ranking.notes %}
   <p class="empty">この期間に該当する記事はありませんでした。</p>
   {% endif %}
+{%- endmacro -%}
+
+{#- 見出し1つの下に表を2列で並べるセクション（AI業界トレンド／技術資料・リポジトリ） -#}
+{%- macro section_block(section) -%}
+  <section>
+    <h2>{{ section.heading }}</h2>
+    <div class="grid">
+      {% for ranking in section.rankings %}
+      <div class="card">
+        {% if ranking.caption %}<h3>{{ ranking.caption }}</h3>{% endif %}
+        {{ table_body(ranking) }}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 {%- endmacro -%}
 <!DOCTYPE html>
 <html lang="ja">
@@ -54,31 +74,45 @@
 
 <main>
 {#- AI業界トレンド：見出し1つの下に、はてブ・HN・X の表が2列で並ぶ -#}
-{% for section in page.sections if section.is_trend %}
-  <section>
-    <h2>{{ section.heading }}</h2>
-    <div class="grid">
-      {% for ranking in section.rankings %}
-      <div class="card">
-        {% if ranking.caption %}<h3>{{ ranking.caption }}</h3>{% endif %}
-        {{ table_body(ranking) }}
-      </div>
-      {% endfor %}
-    </div>
-  </section>
+{% for section in page.sections if section.kind == 'trend' %}
+  {{ section_block(section) }}
 {% endfor %}
 
-{#- キーワード別：セクションそのものを2列で並べる（並びは display_order.txt） -#}
-{% set keyword_sections = page.sections | rejectattr('is_trend') | list %}
+{#- 技術資料・リポジトリ：GitHub・技術評論社。トレンドとキーワード別の間に置く -#}
+{% for section in page.sections if section.kind == 'resources' %}
+  {{ section_block(section) }}
+{% endfor %}
+
+{#- 参考リンク：取得はせず、手で開くためのリンクを置くだけ（reference_links.txt）。
+    1件も無ければ、この欄ごと出さない。 -#}
+{% if page.reference_links %}
+  <section class="reference-links">
+    <h2>参考リンク</h2>
+    <p class="note-plain">記事の取得は行っていません。リンクを開いてご覧ください。</p>
+    <ul>
+      {% for link in page.reference_links %}
+      <li><a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
+
+{#- キーワード別：セクションそのものを2列で並べる（並びは display_order.txt）
+    kind == 'gap' は「（空き）」なので、中身の無い枠だけ置いて次を左列に送る -#}
+{% set keyword_sections = page.sections | selectattr('kind', 'in', ['keyword', 'gap']) | list %}
 {% if keyword_sections %}
   <section>
     <h2>キーワード別</h2>
     <div class="grid">
       {% for section in keyword_sections %}
+      {% if section.kind == 'gap' %}
+      <div class="spacer" aria-hidden="true"></div>
+      {% else %}
       <div class="card">
         <h3>{{ section.heading }}</h3>
         {% for ranking in section.rankings %}{{ table_body(ranking) }}{% endfor %}
       </div>
+      {% endif %}
       {% endfor %}
     </div>
   </section>

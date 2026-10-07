@@ -6,15 +6,21 @@ from datetime import date, datetime
 from pathlib import Path
 
 from src.models import (
+    KIND_RESOURCES,
+    KIND_TREND,
     LABEL_BOOKMARKS,
     LABEL_LIKES,
     LABEL_POINTS,
+    LABEL_STARS,
+    SITE_GIHYO,
+    SITE_GITHUB,
     SITE_HATENA,
     SITE_ZENN,
     Article,
     Page,
     Ranking,
     Section,
+    gap_section,
 )
 from src.render import find_backnumbers, render_html, write_site
 from src.timeutil import JST
@@ -85,7 +91,7 @@ def test_取得元ごとに数の見出しを変える() -> None:
     """はてブは「ブックマーク」、HN は「ポイント」。数え方が違うので呼び分ける。"""
     section = Section(
         heading="AI業界トレンド",
-        is_trend=True,
+        kind=KIND_TREND,
         rankings=[
             Ranking(
                 caption="はてブ",
@@ -108,7 +114,7 @@ def test_表の小見出しが出る() -> None:
     """表ごとの小見出しは AI業界トレンドのセクションで使う。"""
     section = Section(
         heading="AI業界トレンド",
-        is_trend=True,
+        kind=KIND_TREND,
         rankings=[
             Ranking(
                 caption="はてなブックマーク（ブックマーク数順）",
@@ -136,7 +142,7 @@ def test_トレンドの表を2列の枠に入れる() -> None:
     """CSS の grid で2列にするので、表が grid の中に入っていること。"""
     section = Section(
         heading="AI業界トレンド",
-        is_trend=True,
+        kind=KIND_TREND,
         rankings=[
             Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA)),
             Ranking(caption="HN", score_label=LABEL_POINTS, articles=_one("b", "Hacker News")),
@@ -179,7 +185,7 @@ def test_キーワード別の見出しが設定した順に並ぶ() -> None:
 def test_トレンドがキーワード別より先に出る() -> None:
     trend = Section(
         heading="AI業界トレンド",
-        is_trend=True,
+        kind=KIND_TREND,
         rankings=[
             Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA))
         ],
@@ -206,7 +212,7 @@ def test_トレンドが無ければ見出しを出さない() -> None:
 def test_キーワード別が無ければ見出しを出さない() -> None:
     trend = Section(
         heading="AI業界トレンド",
-        is_trend=True,
+        kind=KIND_TREND,
         rankings=[
             Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA))
         ],
@@ -432,3 +438,122 @@ def test_スタイルシートを相対パスで読む(tmp_path: Path) -> None:
     write_site(_page(), tmp_path)
     html = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert 'href="assets/style.css"' in html
+
+
+# ---------- 技術資料・リポジトリのセクション ----------
+
+
+def _resource_section() -> Section:
+    return Section(
+        heading="技術資料・リポジトリ",
+        kind=KIND_RESOURCES,
+        rankings=[
+            Ranking(
+                caption="GitHub（スター数順）",
+                score_label=LABEL_STARS,
+                articles=_one("owner/repo — AI の道具", SITE_GITHUB),
+            ),
+            Ranking(
+                caption="技術評論社（新着順）",
+                score_label=None,
+                articles=_one("AI の記事", SITE_GIHYO),
+            ),
+        ],
+    )
+
+
+def test_技術資料のセクションが2列の枠に入る() -> None:
+    html = render_html(_page([_resource_section()]), page_title="テスト")
+
+    assert "技術資料・リポジトリ" in html
+    assert "GitHub（スター数順）" in html
+    assert "技術評論社（新着順）" in html
+    assert html.count('<div class="card">') == 2
+
+
+def test_技術資料はトレンドの後キーワード別の前に出る() -> None:
+    trend = Section(
+        heading="AI業界トレンド",
+        kind=KIND_TREND,
+        rankings=[
+            Ranking(caption="はてブ", score_label=LABEL_BOOKMARKS, articles=_one("a", SITE_HATENA))
+        ],
+    )
+    keyword = Section(
+        heading="M365", rankings=[Ranking(score_label=LABEL_LIKES, articles=_one("b", SITE_ZENN))]
+    )
+    # わざと順番をばらばらに渡しても、ページ上の並びは決まっている。
+    html = render_html(_page([keyword, _resource_section(), trend]), page_title="テスト")
+
+    assert html.index("AI業界トレンド") < html.index("技術資料・リポジトリ")
+    assert html.index("技術資料・リポジトリ") < html.index("キーワード別")
+
+
+def test_技術資料が無ければ見出しを出さない() -> None:
+    keyword = Section(
+        heading="M365", rankings=[Ranking(score_label=LABEL_LIKES, articles=_one("b", SITE_ZENN))]
+    )
+    html = render_html(_page([keyword]), page_title="テスト")
+    assert "技術資料・リポジトリ" not in html
+
+
+# ---------- 人気の数字が無い取得元（数の列を出さない）----------
+
+
+def test_数の見出しが無ければ列を出さない() -> None:
+    """技術評論社には人気の数字が無いので、数の列そのものを出さない。"""
+    section = Section(
+        heading="技術資料・リポジトリ",
+        kind=KIND_RESOURCES,
+        rankings=[
+            Ranking(
+                caption="技術評論社（新着順）",
+                score_label=None,
+                articles=_one("AI の記事", SITE_GIHYO),
+            )
+        ],
+    )
+    html = render_html(_page([section]), page_title="テスト")
+
+    assert '<th class="col-score">' not in html
+    assert '<td class="col-score">' not in html
+    # タイトルとサイト名・日付は出る。
+    assert "AI の記事" in html
+    assert f'<span class="meta">{SITE_GIHYO}・2026-10-05</span>' in html
+
+
+def test_スター数の見出しを出す() -> None:
+    html = render_html(_page([_resource_section()]), page_title="テスト")
+    assert f'<th class="col-score">{LABEL_STARS}</th>' in html
+
+
+# ---------- 表を置かない位置（（空き））----------
+
+
+def test_空きは中身の無い枠として出る() -> None:
+    """2列のとき、次の表を左列に送るための空の枠を置く。"""
+    sections = [
+        Section(
+            heading="M365",
+            rankings=[Ranking(score_label=LABEL_LIKES, articles=_one("a", SITE_ZENN))],
+        ),
+        gap_section(),
+        Section(
+            heading="ChatGPT",
+            rankings=[Ranking(score_label=LABEL_LIKES, articles=_one("b", SITE_ZENN))],
+        ),
+    ]
+    html = render_html(_page(sections), page_title="テスト")
+
+    assert '<div class="spacer" aria-hidden="true"></div>' in html
+    # 空きは表ではないので card は2つだけ。
+    assert html.count('<div class="card">') == 2
+    # 並びは M365 → 空き → ChatGPT。
+    assert html.index("<h3>M365</h3>") < html.index('<div class="spacer"')
+    assert html.index('<div class="spacer"') < html.index("<h3>ChatGPT</h3>")
+
+
+def test_空きだけでも見出しは出る() -> None:
+    """万一「（空き）」しか残らなくても、ページの形が崩れないこと。"""
+    html = render_html(_page([gap_section()]), page_title="テスト")
+    assert "キーワード別" in html

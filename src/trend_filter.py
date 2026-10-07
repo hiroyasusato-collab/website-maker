@@ -23,6 +23,16 @@ def is_ai_related(title: str, words: Sequence[str]) -> bool:
     return any(contains_word(title, word) for word in words)
 
 
+def text_for_matching(article: Article) -> str:
+    """その記事の AI 判定に使う文字列を返す。
+
+    ふつうはタイトル。ただし GitHub のように表示用のタイトルを短く切っている
+    取得元では、切る前の全文（match_text）を使う。切ったあとの文字列で判定すると、
+    落とした部分にだけ AI の単語があった記事を取りこぼす。
+    """
+    return article.match_text or article.title
+
+
 def filter_ai_related(articles: Iterable[Article], words: Sequence[str]) -> list[Article]:
-    """AI 関連のタイトルを持つ記事だけを残す。並び順は変えない。"""
-    return [article for article in articles if is_ai_related(article.title, words)]
+    """AI 関連の記事だけを残す。並び順は変えない。"""
+    return [article for article in articles if is_ai_related(text_for_matching(article), words)]

@@ -1,16 +1,19 @@
 """日時の取り扱い。取得元ごとに形式が違うので、ここで日本時間にそろえる。
 
 取得元ごとの実際の形式（2026-10-07 に確認）:
-    Zenn   published_at  2026-10-05T13:59:07.666+09:00
-    Qiita  created_at    2026-10-07T09:04:31+09:00
-    note   publish_at    2026-08-22T13:26:20.000+09:00
-    はてブ  dc:date       2026-10-06T07:38:26Z         （UTC）
-    HN     created_at_i  1790728885                   （UNIX秒・UTC基準）
+    Zenn     published_at  2026-10-05T13:59:07.666+09:00
+    Qiita    created_at    2026-10-07T09:04:31+09:00
+    note     publish_at    2026-08-22T13:26:20.000+09:00
+    はてブ    dc:date       2026-10-06T07:38:26Z              （UTC）
+    HN       created_at_i  1790728885                       （UNIX秒・UTC基準）
+    GitHub   created_at    2026-10-06T21:47:02Z             （UTC）
+    技術評論社 pubDate       Wed, 07 Oct 2026 14:39:00 +0900  （RSS 2.0 の形式）
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 JST = timezone(timedelta(hours=9))
 
@@ -57,6 +60,23 @@ def parse_iso(value: str) -> datetime | None:
     except ValueError:
         return None
     # タイムゾーンが書かれていない場合は日本時間として扱う。
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=JST)
+    return parsed.astimezone(JST)
+
+
+def parse_rfc822(value: str) -> datetime | None:
+    """RSS 2.0 の日付（`Wed, 07 Oct 2026 14:39:00 +0900`）を日本時間にする。
+
+    読めなければ None。タイムゾーンが書かれていない場合は日本時間として扱う。
+    """
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = parsedate_to_datetime(text)
+    except (TypeError, ValueError):
+        return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=JST)
     return parsed.astimezone(JST)

@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from src.config import ConfigError, load_settings, read_word_list
+from src.config import (
+    ConfigError,
+    load_settings,
+    parse_keyword_line,
+    read_display_order,
+    read_keywords,
+    read_word_list,
+)
 
 
 def _write(tmp_path: Path, name: str, text: str, encoding: str = "utf-8") -> Path:
@@ -68,7 +75,7 @@ def test_設定をまとめて読む(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
     settings = load_settings(keywords, words, tmp_path / "docs")
 
-    assert settings.keywords == ["RAG"]
+    assert [group.name for group in settings.keywords] == ["RAG"]
     assert settings.trend_words == ["AI", "LLM"]
     assert settings.qiita_token is None
     assert settings.hatena_min_users == 10
@@ -264,17 +271,121 @@ def test_空のトークンは無しとして扱う(tmp_path: Path, monkeypatch:
 
 def test_実際の設定ファイルが読める() -> None:
     """同梱の keywords.txt / ai_trend_words.txt が壊れていないことを確かめる。"""
-    from src.config import KEYWORDS_FILE, TREND_WORDS_FILE
+    from src.config import KEYWORDS_FILE, TREND_WORDS_FILE, read_keywords
 
-    keywords = read_word_list(KEYWORDS_FILE)
+    groups = read_keywords(KEYWORDS_FILE)
+    names = [group.name for group in groups]
+    # 検索に使う単語（まとまりを展開したもの）。
+    search_words = [word for group in groups for word in group.words]
     words = read_word_list(TREND_WORDS_FILE)
 
     # 要件3.1 のキーワードが入っていること。
-    assert "AI駆動開発" in keywords
-    assert "RAG" in keywords
-    assert "Claude Code" in keywords
-    assert "M365" in keywords
+    for required in ("AI駆動開発", "Claude Code", "Codex", "M365", "AIエージェント"):
+        assert required in names, f"{required} が keywords.txt に無い"
+    # RAG とナレッジグラフは1つの表にまとまっている。
+    assert "RAG・ナレッジグラフ" in names
+    assert "RAG" in search_words
+    assert "ナレッジグラフ" in search_words
 
     # 設計メモの「必須」の単語が入っていること（これが無いと取りこぼす）。
     for required in ("AI", "LLM", "GPT", "OpenAI", "ChatGPT", "xAI", "Anthropic"):
         assert required in words, f"{required} が ai_trend_words.txt に無い"
+
+
+# ---------- キーワードのまとまり（1行に複数の単語）----------
+
+
+def test_1行1キーワードならそのまま1つの表になる(tmp_path: Path) -> None:
+    path = _write(tmp_path, "keywords.txt", "AI駆動開発\nM365\n")
+    groups = read_keywords(path)
+
+    assert [g.name for g in groups] == ["AI駆動開発", "M365"]
+    assert groups[0].words == ("AI駆動開発",)
+
+
+def test_カンマで区切ると1つの表にまとまる(tmp_path: Path) -> None:
+    """表の名前は単語を「・」でつないだものになる。"""
+    path = _write(tmp_path, "keywords.txt", "RAG, ナレッジグラフ\n")
+    group = read_keywords(path)[0]
+
+    assert group.name == "RAG・ナレッジグラフ"
+    assert group.words == ("RAG", "ナレッジグラフ")
+
+
+@pytest.mark.parametrize(
+    "line", ["RAG,ナレッジグラフ", "RAG，ナレッジグラフ", "RAG、ナレッジグラフ"]
+)
+def test_全角のカンマや読点でも区切れる(line: str) -> None:
+    """日本語入力のまま打っても通じるようにする。"""
+    group = parse_keyword_line(line)
+    assert group is not None
+    assert group.words == ("RAG", "ナレッジグラフ")
+
+
+def test_区切りの前後の空白は取り除く() -> None:
+    group = parse_keyword_line("  RAG ,   ナレッジグラフ  ")
+    assert group is not None
+    assert group.words == ("RAG", "ナレッジグラフ")
+
+
+def test_単語が無い行は読み飛ばす(tmp_path: Path) -> None:
+    path = _write(tmp_path, "keywords.txt", ",,\nRAG\n")
+    assert [g.name for g in read_keywords(path)] == ["RAG"]
+    assert parse_keyword_line(" , , ") is None
+
+
+def test_同じ名前の行は1つだけ残す(tmp_path: Path) -> None:
+    path = _write(tmp_path, "keywords.txt", "RAG\nM365\nRAG\n")
+    assert [g.name for g in read_keywords(path)] == ["RAG", "M365"]
+
+
+def test_keywordsが空ならエラーにする(tmp_path: Path) -> None:
+    path = _write(tmp_path, "keywords.txt", "# コメントだけ\n\n")
+    with pytest.raises(ConfigError, match="項目が1つもありません"):
+        read_keywords(path)
+
+
+def test_keywordsもBOM付きで読める(tmp_path: Path) -> None:
+    """Windows のメモ帳で保存すると先頭に BOM が付く。"""
+    path = _write(tmp_path, "keywords.txt", "RAG\n", encoding="utf-8-sig")
+    assert [g.name for g in read_keywords(path)] == ["RAG"]
+
+
+# ---------- 表を置かない位置（display_order.txt の「（空き）」）----------
+
+
+def test_空きの行はNoneになる(tmp_path: Path) -> None:
+    path = _write(tmp_path, "display_order.txt", "M365\n（空き）\nRAG\n")
+    assert read_display_order(path) == ["M365", None, "RAG"]
+
+
+@pytest.mark.parametrize("marker", ["（空き）", "(空き)", "空き", "-"])
+def test_空きの書き方はいくつか許す(tmp_path: Path, marker: str) -> None:
+    path = _write(tmp_path, "display_order.txt", f"M365\n{marker}\n")
+    assert read_display_order(path) == ["M365", None]
+
+
+def test_空きは何度書いても残る(tmp_path: Path) -> None:
+    """表の名前は重複を省くが、空きは位置を決めるものなので省かない。"""
+    path = _write(tmp_path, "display_order.txt", "M365\n（空き）\nRAG\n（空き）\n")
+    assert read_display_order(path) == ["M365", None, "RAG", None]
+
+
+def test_同じ表の名前を2回書いても1回だけ出る(tmp_path: Path) -> None:
+    path = _write(tmp_path, "display_order.txt", "M365\nM365\nRAG\n")
+    assert read_display_order(path) == ["M365", "RAG"]
+
+
+def test_カンマ区切りで書いても表の名前として読める(tmp_path: Path) -> None:
+    """keywords.txt と同じ書き方をしても通じるようにする。"""
+    path = _write(tmp_path, "display_order.txt", "RAG, ナレッジグラフ\n")
+    assert read_display_order(path) == ["RAG・ナレッジグラフ"]
+
+
+def test_display_orderは無くても空で返る(tmp_path: Path) -> None:
+    assert read_display_order(tmp_path / "ない.txt") == []
+
+
+def test_keywordsのファイルが無ければ分かるエラーにする(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="見つかりません"):
+        read_keywords(tmp_path / "ない.txt")

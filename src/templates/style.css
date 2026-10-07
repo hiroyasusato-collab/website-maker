@@ -73,6 +73,12 @@ h3 {
   min-width: 0; /* 長いタイトルが列幅を押し広げるのを防ぐ */
 }
 
+/* 表を置かない位置（display_order.txt の「（空き）」）。
+   2列のときだけ場所を取り、次の表を左列に送る。1列に戻ったときは詰める。 */
+.spacer {
+  display: block;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -160,6 +166,23 @@ a:hover {
   padding-left: 1.4em;
 }
 
+/* 参考リンク（取得はせず、手で開くためのリンクを置くだけの小さな欄） */
+.reference-links ul {
+  margin: 6px 0;
+  padding-left: 1.4em;
+}
+
+.reference-links li {
+  margin-bottom: 2px;
+}
+
+/* 表の中の注意書き（.note）ほど目立たせない、ふつうの補足文 */
+.note-plain {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0;
+}
+
 footer {
   margin-top: 40px;
   padding-top: 8px;
@@ -174,12 +197,21 @@ footer {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
+
+  /* 1列のときに空き枠があると、ただの余白になってしまうので消す */
+  .spacer {
+    display: none;
+  }
 }
 
 /* 印刷するときも1列にして、表が切れないようにする */
 @media print {
   .grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spacer {
+    display: none;
   }
 
   a {

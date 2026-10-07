@@ -125,7 +125,7 @@ def build_query(words: list[str], lang: str, limit: int = QUERY_LIMIT) -> list[s
     512文字に収まらない場合は複数本に分ける。
     **分けるとリクエスト数＝読む件数＝費用が増える**ので、分けた場合は警告を出す。
 
-    2026-10-07 時点の ai_trend_words.txt（41語）では 462文字で、1本に収まる。
+    2026-10-07 時点の ai_trend_words.txt（42語）では 473文字で、1本に収まる。
     """
     suffix = QUERY_SUFFIX_TEMPLATE.format(lang=lang)
 

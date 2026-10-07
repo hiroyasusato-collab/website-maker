@@ -90,7 +90,8 @@ def main() -> int:
         print(f"設定ファイルの読み込みに失敗しました: {error}", file=sys.stderr)
         return 1
 
-    print(f"キーワード {len(settings.keywords)} 個: {' / '.join(settings.keywords)}")
+    names = [group.name for group in settings.keywords]
+    print(f"キーワード {len(names)} 個: {' / '.join(names)}")
     print(f"AI判定の単語 {len(settings.trend_words)} 個")
     print(f"1サイトあたりの上限: {settings.max_per_site or 'なし'} 件")
     print(f"Qiita トークン: {'あり' if settings.qiita_token else 'なし（1時間60回まで）'}")

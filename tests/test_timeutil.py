@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from src.timeutil import JST, parse_iso, parse_unix, period_end, period_start, to_date
+from src.timeutil import JST, parse_iso, parse_rfc822, parse_unix, period_end, period_start, to_date
 
 
 def test_期間の始まりは実行日を含む7日前の0時() -> None:
@@ -95,3 +95,29 @@ def test_UNIX秒が文字列でも読める() -> None:
 @pytest.mark.parametrize("raw", [None, "", "abc", [], {}])
 def test_読めないUNIX秒はNoneを返す(raw: object) -> None:
     assert parse_unix(raw) is None
+
+
+# ---------- RSS 2.0 の日付（技術評論社）----------
+
+
+def test_RSS2の日付を日本時間に直す() -> None:
+    parsed = parse_rfc822("Wed, 07 Oct 2026 14:39:00 +0900")
+    assert parsed is not None
+    assert parsed.isoformat() == "2026-10-07T14:39:00+09:00"
+
+
+def test_RSS2の日付がUTCでも日本時間に直す() -> None:
+    parsed = parse_rfc822("Wed, 07 Oct 2026 00:00:00 +0000")
+    assert parsed is not None
+    assert parsed.isoformat() == "2026-10-07T09:00:00+09:00"
+
+
+def test_RSS2の日付にタイムゾーンが無ければ日本時間として扱う() -> None:
+    parsed = parse_rfc822("Wed, 07 Oct 2026 14:39:00")
+    assert parsed is not None
+    assert parsed.isoformat() == "2026-10-07T14:39:00+09:00"
+
+
+@pytest.mark.parametrize("raw", ["", "   ", "いつか", "2026-10-07"])
+def test_読めないRSS2の日付はNoneを返す(raw: str) -> None:
+    assert parse_rfc822(raw) is None

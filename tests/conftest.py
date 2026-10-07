@@ -21,9 +21,23 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from src.config import KeywordGroup, parse_keyword_line  # noqa: E402
 from src.timeutil import JST  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def keyword_groups(*lines: str) -> list[KeywordGroup]:
+    """テスト用に keywords.txt の行からキーワードのまとまりを作る。
+
+    `keyword_groups("Claude Code", "RAG, ナレッジグラフ")` のように書ける。
+    """
+    groups: list[KeywordGroup] = []
+    for line in lines:
+        group = parse_keyword_line(line)
+        assert group is not None, f"単語が1つも無い行: {line!r}"
+        groups.append(group)
+    return groups
 
 
 def load_fixture_json(name: str) -> Any:

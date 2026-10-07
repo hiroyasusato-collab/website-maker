@@ -17,6 +17,9 @@ ClaudeCode対象外/
 # 設計時の調査用スクリプトと結果（リポジトリには不要）
 tmp_probe/
 
+# 見た目の確認でブラウザ操作ツールが作る一時ファイル
+.playwright-mcp/
+
 # Python
 __pycache__/
 *.py[cod]

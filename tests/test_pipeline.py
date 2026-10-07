@@ -15,6 +15,9 @@ import pytest
 
 from src.config import Settings
 from src.models import (
+    KIND_KEYWORD,
+    KIND_RESOURCES,
+    KIND_TREND,
     LABEL_BOOKMARKS,
     LABEL_LIKES,
     LABEL_POINTS,
@@ -23,9 +26,9 @@ from src.models import (
     SITE_X,
     SITE_ZENN,
 )
-from src.pipeline import TREND_HEADING, build_page
-from src.sources import hackernews, note_com, qiita, x_posts, zenn
-from tests.conftest import load_fixture_json, load_fixture_text
+from src.pipeline import RESOURCE_HEADING, TREND_HEADING, build_page
+from src.sources import gihyo, github_repos, hackernews, note_com, qiita, x_posts, zenn
+from tests.conftest import keyword_groups, load_fixture_json, load_fixture_text
 
 EMPTY_RSS = '<?xml version="1.0" encoding="UTF-8"?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/"></rdf:RDF>'  # noqa: E501
 
@@ -35,7 +38,7 @@ TREND_WORDS = ["AI", "LLM", "GPT", "Claude", "OpenAI", "ChatGPT", "Mistral", "Ag
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
-        keywords=["Claude Code", "RAG"],
+        keywords=keyword_groups("Claude Code", "RAG"),
         trend_words=TREND_WORDS,
         output_dir=tmp_path / "docs",
         qiita_token=None,
@@ -72,30 +75,42 @@ class FakeJson:
             return {"data": {"notes": {"contents": []}}}
         if url == hackernews.SEARCH_URL:
             return load_fixture_json("hn_search.json") if page == 0 else {"hits": []}
+        if url == github_repos.SEARCH_URL:
+            return load_fixture_json("github_search.json") if page == 1 else {"items": []}
         raise AssertionError(f"知らない URL: {url}")
 
 
 class FakeText:
-    def __init__(self, fail: bool = False) -> None:
+    """はてなブックマークと技術評論社の応答を返す偽の取得関数。"""
+
+    def __init__(self, fail: bool = False, fail_urls: set[str] | None = None) -> None:
         self.fail = fail
+        self.fail_urls = fail_urls or set()
         self.calls: list[str] = []
 
     def __call__(self, url: str, **kwargs: Any) -> str:
         self.calls.append(url)
-        if self.fail:
-            raise RuntimeError("はてブに接続できません")
+        if self.fail or url in self.fail_urls:
+            raise RuntimeError(f"{url} に接続できません")
+        if url == gihyo.FEED_URL:
+            return load_fixture_text("gihyo_feed.rss")
         page = kwargs.get("params", {}).get("page")
         return load_fixture_text("hatena_search.rss") if page == 1 else EMPTY_RSS
 
 
 def _trend(page: Any) -> Any:
     """AI業界トレンドのセクションを取り出す（ページ上の位置に依存しない）。"""
-    return next(s for s in page.sections if s.is_trend)
+    return next(s for s in page.sections if s.kind == KIND_TREND)
+
+
+def _resources(page: Any) -> Any:
+    """技術資料・リポジトリのセクションを取り出す。"""
+    return next(s for s in page.sections if s.kind == KIND_RESOURCES)
 
 
 def _keyword_sections(page: Any) -> list[Any]:
-    """キーワード別セクションを、ページに出る順で取り出す。"""
-    return [s for s in page.sections if not s.is_trend]
+    """キーワード別セクションを、ページに出る順で取り出す（「（空き）」は含まない）。"""
+    return [s for s in page.sections if s.kind == KIND_KEYWORD]
 
 
 # ---------- ページの形 ----------
@@ -105,14 +120,16 @@ def test_AI業界トレンドが先に出る(settings: Settings, reference: date
     """ページの並びは AI業界トレンド → キーワード別。"""
     page = build_page(settings, FakeJson(), FakeText(), reference)
     assert page.sections[0].heading == TREND_HEADING
-    assert page.sections[0].is_trend is True
+    assert page.sections[0].kind == KIND_TREND
+    assert page.sections[1].heading == RESOURCE_HEADING
+    assert page.sections[1].kind == KIND_RESOURCES
 
 
 def test_キーワード別セクションが並ぶ(settings: Settings, reference: datetime) -> None:
     """display_order.txt を指定していなければ keywords.txt の順に並ぶ。"""
     page = build_page(settings, FakeJson(), FakeText(), reference)
     assert [s.heading for s in _keyword_sections(page)] == ["Claude Code", "RAG"]
-    assert all(s.is_trend is False for s in _keyword_sections(page))
+    assert all(s.kind == KIND_KEYWORD for s in _keyword_sections(page))
 
 
 def test_集めた期間が実行日を含む7日間になる(settings: Settings, reference: datetime) -> None:
@@ -234,6 +251,8 @@ class ManyArticlesJson:
             }
         if url == hackernews.SEARCH_URL:
             return load_fixture_json("hn_search.json") if page == 0 else {"hits": []}
+        if url == github_repos.SEARCH_URL:
+            return load_fixture_json("github_search.json") if page == 1 else {"items": []}
         raise AssertionError(f"知らない URL: {url}")
 
 
@@ -247,7 +266,7 @@ def _site_counts(articles: list[Any]) -> dict[str, int]:
 def test_1サイトの上限が効く(tmp_path: Path, reference: datetime) -> None:
     """note がいいね数で上位を占めても、4件までに抑えて他のサイトを拾う。"""
     settings = Settings(
-        keywords=["Claude Code"],
+        keywords=keyword_groups("Claude Code"),
         trend_words=TREND_WORDS,
         output_dir=tmp_path / "docs",
         qiita_token=None,
@@ -270,7 +289,7 @@ def test_1サイトの上限が効く(tmp_path: Path, reference: datetime) -> No
 def test_上限なしならnoteが独占する(tmp_path: Path, reference: datetime) -> None:
     """上限を入れる前の動き。この偏りを直すための変更であることを示す。"""
     settings = Settings(
-        keywords=["Claude Code"],
+        keywords=keyword_groups("Claude Code"),
         trend_words=TREND_WORDS,
         output_dir=tmp_path / "docs",
         qiita_token=None,
@@ -288,7 +307,7 @@ def test_上限はAI業界トレンドセクションには効かない(tmp_path
     1つの表の記事は全部同じサイトなので、上限が効いてしまうと4件に削られる。
     """
     settings = Settings(
-        keywords=["Claude Code"],
+        keywords=keyword_groups("Claude Code"),
         trend_words=TREND_WORDS,
         output_dir=tmp_path / "docs",
         qiita_token=None,
@@ -325,7 +344,7 @@ def test_上限はAI業界トレンドセクションには効かない(tmp_path
 def test_取得元が失敗したら上限を超えて埋める(tmp_path: Path, reference: datetime) -> None:
     """Qiita と Zenn が失敗して note しか残らない場合、4件ではなく10件出す。"""
     settings = Settings(
-        keywords=["Claude Code"],
+        keywords=keyword_groups("Claude Code"),
         trend_words=TREND_WORDS,
         output_dir=tmp_path / "docs",
         qiita_token=None,
@@ -349,7 +368,7 @@ def test_取得元が失敗したら上限を超えて埋める(tmp_path: Path, 
 
 def test_記事が上限より少なければそのまま出す(tmp_path: Path, reference: datetime) -> None:
     settings = Settings(
-        keywords=["Claude Code"],
+        keywords=keyword_groups("Claude Code"),
         trend_words=TREND_WORDS,
         output_dir=tmp_path / "docs",
         qiita_token=None,
@@ -399,7 +418,7 @@ class XJson(FakeJson):
 
 def _x_settings(tmp_path: Path, **overrides: Any) -> Settings:
     values: dict[str, Any] = {
-        "keywords": ["Claude Code"],
+        "keywords": keyword_groups("Claude Code"),
         "trend_words": TREND_WORDS,
         "output_dir": tmp_path / "docs",
         "qiita_token": None,
@@ -615,10 +634,16 @@ def test_全部失敗してもページの形は崩れない(settings: Settings,
         qiita.ITEMS_URL,
         note_com.SEARCH_URL,
         hackernews.SEARCH_URL,
+        github_repos.SEARCH_URL,
     }
     page = build_page(settings, FakeJson(fail=all_urls), FakeText(fail=True), reference)
 
-    assert [s.heading for s in page.sections] == [TREND_HEADING, "Claude Code", "RAG"]
+    assert [s.heading for s in page.sections] == [
+        TREND_HEADING,
+        RESOURCE_HEADING,
+        "Claude Code",
+        "RAG",
+    ]
     for section in page.sections:
         for ranking in section.rankings:
             assert ranking.articles == []

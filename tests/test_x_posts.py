@@ -55,6 +55,33 @@ def test_実際の単語リストが1本に収まる() -> None:
         assert len(queries[0]) <= x_posts.QUERY_LIMIT
 
 
+def test_マルチモーダルを入れても1本に収まる() -> None:
+    """技術評論社の「マルチモーダル〜」の記事を拾うために足した単語。
+
+    この単語があっても検索条件が2本に分かれない（＝X の費用が倍にならない）こと。
+    """
+    from src.config import TREND_WORDS_FILE, read_word_list
+
+    words = read_word_list(TREND_WORDS_FILE)
+    assert "マルチモーダル" in words
+
+    for lang in x_posts.LANGUAGES:
+        queries = x_posts.build_query(words, lang)
+        assert len(queries) == 1
+
+
+def test_単語リストに余裕が残っている() -> None:
+    """これ以上どれくらい単語を足せるかの目安。余裕が無くなったら気づけるようにする。"""
+    from src.config import TREND_WORDS_FILE, read_word_list
+
+    words = read_word_list(TREND_WORDS_FILE)
+    longest = max(len(x_posts.build_query(words, lang)[0]) for lang in x_posts.LANGUAGES)
+
+    assert longest <= x_posts.QUERY_LIMIT
+    # 2026-10-07 時点で 473文字（残り39文字）。
+    assert x_posts.QUERY_LIMIT - longest >= 20, "残りが少ないので、単語を足すときは注意"
+
+
 def test_上限を超えたら複数本に分ける() -> None:
     many = [f"word{i:03d}" for i in range(200)]
     queries = x_posts.build_query(many, "ja")

@@ -8,16 +8,21 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 
 from src import aggregate
-from src.config import Settings
+from src.config import KeywordGroup, Settings
 from src.fetcher import JsonFetch, TextFetch
 from src.models import (
+    KIND_RESOURCES,
+    KIND_TREND,
     LABEL_BOOKMARKS,
     LABEL_LIKES,
     LABEL_POINTS,
+    LABEL_STARS,
+    SITE_GIHYO,
+    SITE_GITHUB,
     SITE_HACKER_NEWS,
     SITE_HATENA,
     SITE_NOTE,
@@ -28,14 +33,16 @@ from src.models import (
     Page,
     Ranking,
     Section,
+    gap_section,
 )
-from src.sources import hackernews, hatena, note_com, qiita, x_posts, zenn
+from src.sources import gihyo, github_repos, hackernews, hatena, note_com, qiita, x_posts, zenn
 from src.timeutil import now_jst, period_end, period_start, to_date
 from src.trend_filter import filter_ai_related, is_ai_related
 
 logger = logging.getLogger(__name__)
 
 TREND_HEADING = "AI業界トレンド"
+RESOURCE_HEADING = "技術資料・リポジトリ"
 
 # X の表の見出しに使う言語名。
 X_LANGUAGE_LABELS = {"ja": "日本語", "en": "英語"}
@@ -60,26 +67,38 @@ def _safe_collect(
 
 
 def build_keyword_section(
-    keyword: str,
+    group: KeywordGroup,
     since: datetime,
     until: datetime,
     settings: Settings,
     fetch_json: JsonFetch,
     used_urls: set[str],
 ) -> Section:
-    """キーワード1つ分のセクションを作る（Zenn・Qiita・note の3つから集める）。"""
+    """キーワードのまとまり1つ分のセクションを作る（Zenn・Qiita・note の3つから集める）。
+
+    keywords.txt の1行に複数の単語が書かれている場合（例：RAG, ナレッジグラフ）は、
+    単語ごとに検索して結果を1つの表にまとめる。どちらかに当たる記事が並ぶ。
+    """
     collected: list[Article] = []
     notes: list[str] = []
 
-    for site, collect in (
-        (SITE_ZENN, lambda: zenn.collect(keyword, since, fetch_json)),
-        (SITE_QIITA, lambda: qiita.collect(keyword, since, fetch_json, settings.qiita_token)),
-        (SITE_NOTE, lambda: note_com.collect(keyword, since, fetch_json)),
-    ):
-        articles, note = _safe_collect(f"{site}（{keyword}）", collect)
-        collected.extend(articles)
-        if note:
-            notes.append(note)
+    for word in group.words:
+        # lambda の中の word は「呼ばれたとき」の値になってしまうため、
+        # 既定の引数として今の値を固定しておく（繰り返しの中で lambda を作るときの定石）。
+        for site, collect in (
+            (SITE_ZENN, lambda word=word: zenn.collect(word, since, fetch_json)),  # type: ignore[misc]
+            (
+                SITE_QIITA,
+                lambda word=word: qiita.collect(  # type: ignore[misc]
+                    word, since, fetch_json, settings.qiita_token
+                ),
+            ),
+            (SITE_NOTE, lambda word=word: note_com.collect(word, since, fetch_json)),  # type: ignore[misc]
+        ):
+            articles, note = _safe_collect(f"{site}（{word}）", collect)
+            collected.extend(articles)
+            if note:
+                notes.append(note)
 
     in_window = aggregate.within_window(collected, since, until)
     # 1サイトあたりの上限を守って TOP10 を選ぶ（AI業界トレンドセクションでは使わない）。
@@ -95,13 +114,13 @@ def build_keyword_section(
         if over:
             logger.info(
                 "%s: 他のサイトの記事が足りないため、1サイトの上限（%d件）を超えて埋めました: %s",
-                keyword,
+                group.name,
                 settings.max_per_site,
                 "、".join(f"{site} {count}件" for site, count in over.items()),
             )
 
     return Section(
-        heading=keyword,
+        heading=group.name,
         rankings=[Ranking(score_label=LABEL_LIKES, articles=articles, notes=notes)],
     )
 
@@ -176,7 +195,66 @@ def build_trend_section(
     else:
         logger.info("X は止めてあります（.env の X_ENABLED）。接続せず、表も出しません。")
 
-    return Section(heading=TREND_HEADING, rankings=rankings, is_trend=True)
+    return Section(heading=TREND_HEADING, rankings=rankings, kind=KIND_TREND)
+
+
+def build_resource_section(
+    since: datetime,
+    until: datetime,
+    settings: Settings,
+    fetch_json: JsonFetch,
+    fetch_text: TextFetch,
+) -> Section:
+    """技術資料・リポジトリのセクションを作る（GitHub・技術評論社）。
+
+    数字の意味がキーワード別の表と違う（スター数／数字なし）ので、
+    AI業界トレンドと同じように独立した表にして混ぜない。
+    """
+    rankings: list[Ranking] = []
+
+    def wanted(title: str) -> bool:
+        return is_ai_related(title, settings.trend_words)
+
+    # --- GitHub（直近7日に作られたリポジトリ・スター数順）---
+    # AI 関連が TOP10 分そろうまでページを進める（Hacker News と同じ考え方）。
+    repos, repos_note = _safe_collect(
+        SITE_GITHUB,
+        lambda: github_repos.collect(
+            since, fetch_json, is_wanted=wanted, needed=aggregate.TOP_N, until=until
+        ),
+    )
+    rankings.append(
+        Ranking(
+            caption=f"{SITE_GITHUB}（スター数順）",
+            score_label=LABEL_STARS,
+            articles=aggregate.pick_top(
+                filter_ai_related(
+                    aggregate.within_window(repos, since, until), settings.trend_words
+                ),
+                set(),
+            ),
+            notes=[repos_note] if repos_note else [],
+        )
+    )
+
+    # --- 技術評論社（新着順）---
+    # 人気の数字が無い取得元なので、数の列を出さず（score_label=None）新着順に並べる。
+    gihyo_articles, gihyo_note = _safe_collect(SITE_GIHYO, lambda: gihyo.collect(since, fetch_text))
+    rankings.append(
+        Ranking(
+            caption=f"{SITE_GIHYO}（新着順）",
+            score_label=None,
+            articles=aggregate.pick_latest(
+                filter_ai_related(
+                    aggregate.within_window(gihyo_articles, since, until), settings.trend_words
+                ),
+                set(),
+            ),
+            notes=[gihyo_note] if gihyo_note else [],
+        )
+    )
+
+    return Section(heading=RESOURCE_HEADING, rankings=rankings, kind=KIND_RESOURCES)
 
 
 def _build_x_rankings(
@@ -217,26 +295,39 @@ def _build_x_rankings(
     return rankings
 
 
-def arrange_for_display(keywords: list[str], display_order: list[str]) -> list[str]:
+def arrange_for_display(
+    keywords: Sequence[str], display_order: Sequence[str | None]
+) -> list[str | None]:
     """キーワードを「ページに出す順番」に並べ替える。
 
     display_order.txt に書かれた順を先に使い、**書かれていないキーワードは末尾に足す**。
     キーワードを増やしたときに display_order.txt へ書き忘れても、ページから消えない。
     display_order.txt にしか無いキーワード（keywords.txt から消したものなど）は無視する。
 
+    display_order に入っている **None は「表を置かない位置」**（「（空き）」と書いた行）で、
+    そのまま結果に残す。2列表示で片側を空け、次の表を左列に送るために使う。
+    末尾の None は見た目に影響しないので取り除く。
+
     この並べ替えは**表示だけ**に効く。どの記事がどのセクションに載るかを決める
     優先順は keywords.txt の順のままで変わらない（要件4）。
     """
     remaining = list(keywords)
-    ordered: list[str] = []
+    ordered: list[str | None] = []
 
-    for keyword in display_order:
-        if keyword in remaining:
-            remaining.remove(keyword)
-            ordered.append(keyword)
+    for name in display_order:
+        if name is None:
+            ordered.append(None)
+            continue
+        if name in remaining:
+            remaining.remove(name)
+            ordered.append(name)
 
     # display_order.txt に無いものは、keywords.txt の順で末尾に足す。
     ordered.extend(remaining)
+
+    # 末尾の「（空き）」は意味が無いので落とす（空の枠がページ下部に残らないように）。
+    while ordered and ordered[-1] is None:
+        ordered.pop()
     return ordered
 
 
@@ -265,21 +356,26 @@ def build_page(
     used_urls: set[str] = set()
 
     # 1) keywords.txt の順に集める（優先順）
-    by_keyword = {
-        keyword: build_keyword_section(keyword, since, until, settings, fetch_json, used_urls)
-        for keyword in settings.keywords
+    by_name = {
+        group.name: build_keyword_section(group, since, until, settings, fetch_json, used_urls)
+        for group in settings.keywords
     }
 
-    # 2) 表示用に並べ替える
-    display_keywords = arrange_for_display(settings.keywords, settings.display_order)
-    keyword_sections = [by_keyword[keyword] for keyword in display_keywords]
+    # 2) 表示用に並べ替える（None は「表を置かない位置」）
+    display_names = arrange_for_display(list(by_name), settings.display_order)
+    keyword_sections = [gap_section() if name is None else by_name[name] for name in display_names]
 
-    # AI業界トレンドを先に出し、そのあとキーワード別セクションを並べる。
-    sections = [build_trend_section(since, until, settings, fetch_json, fetch_text)]
+    # AI業界トレンド → 技術資料・リポジトリ → キーワード別 の順に並べる。
+    sections = [
+        build_trend_section(since, until, settings, fetch_json, fetch_text),
+        build_resource_section(since, until, settings, fetch_json, fetch_text),
+    ]
     sections.extend(keyword_sections)
 
     return Page(
         target_date=to_date(reference),
         period_start=to_date(since),
         sections=sections,
+        # 取得はせず、ページにリンクを置くだけ（reference_links.txt）。
+        reference_links=settings.reference_links,
     )

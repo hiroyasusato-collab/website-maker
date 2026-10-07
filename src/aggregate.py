@@ -95,6 +95,16 @@ def rank(articles: Iterable[Article], limit: int = TOP_N) -> list[Article]:
     return ordered[:limit]
 
 
+def rank_by_date(articles: Iterable[Article], limit: int = TOP_N) -> list[Article]:
+    """新しい順に並べて上位 limit 件を返す。
+
+    技術評論社のように「人気の数字が無い取得元」で使う。
+    投稿日が同じときはタイトル順にする（同じ入力なら毎回同じ結果になるように）。
+    """
+    ordered = sorted(articles, key=lambda a: (-a.published_at.timestamp(), a.title))
+    return ordered[:limit]
+
+
 def select_with_site_cap(
     articles: Iterable[Article],
     limit: int = TOP_N,
@@ -171,5 +181,20 @@ def pick_top(
     """
     candidates = dedupe_within(exclude_used(articles, used_urls))
     top = select_with_site_cap(candidates, limit, max_per_site)
+    used_urls.update(normalize_url(a.url) for a in top)
+    return top
+
+
+def pick_latest(
+    articles: Iterable[Article],
+    used_urls: set[str],
+    limit: int = TOP_N,
+) -> list[Article]:
+    """1つの表に載せる記事を「新しい順」で決める（pick_top の日付順版）。
+
+    人気の数字が無い取得元（技術評論社）で使う。重複の除き方は pick_top と同じ。
+    """
+    candidates = dedupe_within(exclude_used(articles, used_urls))
+    top = rank_by_date(candidates, limit)
     used_urls.update(normalize_url(a.url) for a in top)
     return top

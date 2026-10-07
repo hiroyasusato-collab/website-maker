@@ -12,12 +12,14 @@ from src.aggregate import (
     dedupe_within,
     exclude_used,
     normalize_url,
+    pick_latest,
     pick_top,
     rank,
+    rank_by_date,
     select_with_site_cap,
     within_window,
 )
-from src.models import SITE_NOTE, SITE_QIITA, SITE_ZENN, Article
+from src.models import SITE_GIHYO, SITE_NOTE, SITE_QIITA, SITE_ZENN, Article
 from src.timeutil import JST
 
 BASE = datetime(2026, 10, 5, 12, 0, tzinfo=JST)
@@ -426,3 +428,58 @@ def test_取得元が混ざっても並べ替えられる() -> None:
     qiita = Article("Qiitaの記事", "https://qiita.com/b", 50, BASE, SITE_QIITA)
     used: set[str] = set()
     assert [a.site for a in pick_top([zenn, qiita], used)] == [SITE_QIITA, SITE_ZENN]
+
+
+# ---------- 新着順（人気の数字が無い取得元）----------
+#
+# 技術評論社にはいいね数にあたる数字が無いので、日付で並べる。
+
+
+def _dated(title: str, days: int, score: int = 0) -> Article:
+    return Article(
+        title=title,
+        url=f"https://gihyo.jp/{title}",
+        score=score,
+        published_at=BASE - timedelta(days=days),
+        site=SITE_GIHYO,
+    )
+
+
+def test_新着順に並べる() -> None:
+    articles = [_dated("古い", 3), _dated("新しい", 0), _dated("中間", 1)]
+    assert [a.title for a in rank_by_date(articles)] == ["新しい", "中間", "古い"]
+
+
+def test_新着順でも上位10件で切る() -> None:
+    articles = [_dated(f"記事{i}", i) for i in range(15)]
+    assert len(rank_by_date(articles)) == TOP_N
+
+
+def test_新着順は件数の上限を指定できる() -> None:
+    articles = [_dated(f"記事{i}", i) for i in range(15)]
+    assert len(rank_by_date(articles, limit=3)) == 3
+
+
+def test_同じ日付ならタイトル順にする() -> None:
+    """同じ入力なら毎回同じ結果になるように、並びを決めておく。"""
+    articles = [_dated("ん", 1), _dated("あ", 1)]
+    assert [a.title for a in rank_by_date(articles)] == ["あ", "ん"]
+
+
+def test_新着順はいいね数を見ない() -> None:
+    """スコアが大きくても、古ければ後ろに来る。"""
+    articles = [_dated("古いが人気", 3, score=9999), _dated("新しい", 0, score=0)]
+    assert [a.title for a in rank_by_date(articles)] == ["新しい", "古いが人気"]
+
+
+def test_新着順でも重複を省く() -> None:
+    same = _dated("同じ記事", 1)
+    used: set[str] = set()
+    assert len(pick_latest([same, _dated("同じ記事", 2)], used)) == 1
+
+
+def test_新着順でも載せた記事を覚える() -> None:
+    used: set[str] = set()
+    pick_latest([_dated("記事A", 1)], used)
+    # 2回目は、すでに載った記事なので出ない。
+    assert pick_latest([_dated("記事A", 1)], used) == []

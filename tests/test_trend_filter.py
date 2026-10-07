@@ -130,3 +130,46 @@ def test_記事の絞り込みは並び順を変えない() -> None:
     ]
     result = filter_ai_related(articles, WORDS)
     assert [a.title for a in result] == ["Mistral Large 4", "Agents don't need memory"]
+
+
+# ---------- 表示用に切ったタイトルと、判定用の全文 ----------
+
+
+def _repo(title: str, match_text: str | None = None) -> Article:
+    return Article(
+        title=title,
+        url="https://example.com/a",
+        score=1,
+        published_at=datetime(2026, 10, 5, tzinfo=JST),
+        site="GitHub",
+        match_text=match_text,
+    )
+
+
+def test_match_textが無ければタイトルで判定する() -> None:
+    assert filter_ai_related([_repo("AI の記事")], ["AI"])
+    assert filter_ai_related([_repo("料理の記事")], ["AI"]) == []
+
+
+def test_match_textがあればそちらで判定する() -> None:
+    """GitHub のように表示用のタイトルを切っている取得元のための仕組み。"""
+    article = _repo("someorg/toolkit — A fast toolkit for…", "someorg/toolkit — ... LLM helper")
+    assert filter_ai_related([article], ["LLM"]) == [article]
+
+
+def test_match_textが空文字ならタイトルで判定する() -> None:
+    """空文字が入っていても、判定する文字列が無くならないようにする。"""
+    assert filter_ai_related([_repo("AI の記事", "")], ["AI"])
+
+
+def test_マルチモーダルの記事を拾える() -> None:
+    """技術評論社の実際のタイトル。この単語が無いと AI 記事なのに拾えなかった。"""
+    from src.config import TREND_WORDS_FILE, read_word_list
+
+    words = read_word_list(TREND_WORDS_FILE)
+    titles = [
+        "Google、スマートフォンで動くマルチモーダル埋め込みモデル「EmbeddingGemma 2」を公開",
+        "Cloudflare、オープンソースのマルチモーダル意思決定モデル「Clef」をリリース",
+    ]
+    for title in titles:
+        assert is_ai_related(title, words), f"拾えていない: {title}"

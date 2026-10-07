@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<rss version="2.0">
+<channel>
+<title>gihyo.jp</title>
+<link>https://gihyo.jp</link>
+<description><![CDATA[gihyo.jp は、技術評論社が運営しているWebメディアです。]]></description>
+<lastBuildDate>Wed, 07 Oct 2026 16:04:00 +0900</lastBuildDate>
+<item>
+<title>Google、スマートフォンで動くマルチモーダル埋め込みモデル「EmbeddingGemma 2」を公開</title>
+<link>https://gihyo.jp/article/2026/10/embeddinggemma-2?utm_source=feed</link>
+<pubDate>Wed, 07 Oct 2026 14:39:00 +0900</pubDate>
+<description><![CDATA[Googleは2026年10月6日、埋め込みモデルを公開した。]]></description>
+<guid isPermaLink="true">https://gihyo.jp/article/2026/10/embeddinggemma-2</guid>
+</item>
+<item>
+<title>Anthropic、Claude Sonnet 5.5を発表</title>
+<link>https://gihyo.jp/article/2026/10/claude-sonnet-5.5?utm_source=feed</link>
+<pubDate>Tue, 06 Oct 2026 11:08:00 +0900</pubDate>
+<description><![CDATA[Anthropicは新しいモデルを発表した。]]></description>
+<guid isPermaLink="true">https://gihyo.jp/article/2026/10/claude-sonnet-5.5</guid>
+</item>
+<item>
+<title>OpenAI、「GPT-6 Sol」を発表</title>
+<link>https://gihyo.jp/article/2026/10/gpt-6-sol?utm_source=feed</link>
+<pubDate>Mon, 05 Oct 2026 09:30:00 +0900</pubDate>
+<description><![CDATA[OpenAI は新しいモデルを発表した。]]></description>
+<guid isPermaLink="true">https://gihyo.jp/article/2026/10/gpt-6-sol</guid>
+</item>
+<item>
+<title>第929回　Imagecraft 1.0でUbuntuの仮想マシンイメージを自作する</title>
+<link>https://gihyo.jp/admin/serial/01/ubuntu-recipe/0929?utm_source=feed</link>
+<pubDate>Sun, 04 Oct 2026 09:30:00 +0900</pubDate>
+<description><![CDATA[Imagecraft を使って仮想マシンイメージを作ります。]]></description>
+<guid isPermaLink="true">https://gihyo.jp/admin/serial/01/ubuntu-recipe/0929</guid>
+</item>
+<item>
+<title>生成AIで業務を変える</title>
+<link>https://gihyo.jp/article/2026/09/kako-seisei-ai?utm_source=feed</link>
+<pubDate>Sun, 20 Sep 2026 10:00:00 +0900</pubDate>
+<description><![CDATA[期間の外にある古い記事です。]]></description>
+<guid isPermaLink="true">https://gihyo.jp/article/2026/09/kako-seisei-ai</guid>
+</item>
+<item>
+<title>guid が無いときは link を使う Claude の記事</title>
+<link>https://gihyo.jp/article/2026/10/no-guid?utm_source=feed</link>
+<pubDate>Fri, 02 Oct 2026 12:00:00 +0900</pubDate>
+<description><![CDATA[guid 要素が無い場合の確認用。]]></description>
+</item>
+</channel>
+</rss>

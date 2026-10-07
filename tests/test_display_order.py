@@ -16,6 +16,7 @@ import pytest
 from src.config import Settings, load_settings
 from src.models import SITE_X
 from src.pipeline import TREND_HEADING, arrange_for_display, build_page
+from tests.conftest import keyword_groups
 from tests.test_pipeline import (
     FakeText,
     ManyArticlesJson,
@@ -76,7 +77,7 @@ def test_キーワードが1つでも落ちない() -> None:
 def test_並べ替えても件数は変わらない() -> None:
     """並べ替えで増えたり消えたりしないこと。"""
     result = arrange_for_display(KEYWORDS, DISPLAY)
-    assert sorted(result) == sorted(KEYWORDS)
+    assert sorted(name for name in result if name is not None) == sorted(KEYWORDS)
 
 
 # ---------- 実際のページでの並び ----------
@@ -84,7 +85,7 @@ def test_並べ替えても件数は変わらない() -> None:
 
 def _settings(tmp_path: Path, **overrides: Any) -> Settings:
     values: dict[str, Any] = {
-        "keywords": ["Claude Code", "RAG", "M365"],
+        "keywords": keyword_groups("Claude Code", "RAG", "M365"),
         "trend_words": ["AI", "Claude", "RAG", "M365"],
         "output_dir": tmp_path / "docs",
         "qiita_token": None,
@@ -289,16 +290,49 @@ def test_設定ファイルを読める(tmp_path: Path, monkeypatch: pytest.Monk
 
 def test_同梱の設定ファイルがkeywordsと合っている() -> None:
     """display_order.txt と keywords.txt の中身がそろっていることを確かめる。"""
-    from src.config import DISPLAY_ORDER_FILE, KEYWORDS_FILE, read_word_list
+    from src.config import DISPLAY_ORDER_FILE, KEYWORDS_FILE, read_display_order, read_keywords
 
-    keywords = read_word_list(KEYWORDS_FILE)
-    display = read_word_list(DISPLAY_ORDER_FILE, required=False)
+    names = [group.name for group in read_keywords(KEYWORDS_FILE)]
+    display = read_display_order(DISPLAY_ORDER_FILE)
 
-    assert sorted(display) == sorted(keywords), "両方のファイルに同じキーワードが並ぶこと"
-    # 依頼どおりの並びになっていること。
-    assert display == ["M365", "ChatGPT", "RAG", "Claude", "Claude Code", "AI駆動開発"]
-    # 優先順（keywords.txt）は変えない。
-    assert keywords == ["AI駆動開発", "RAG", "Claude Code", "Claude", "ChatGPT", "M365"]
+    # 「（空き）」（None）を除くと、両方のファイルに同じ表の名前が並ぶこと。
+    assert sorted(n for n in display if n is not None) == sorted(names)
+
+    # 依頼どおりの表示の並びになっていること（None は表を置かない位置）。
+    assert display == [
+        "M365",
+        "RAG・ナレッジグラフ",
+        "AIエージェント",
+        None,
+        "ChatGPT",
+        "Codex",
+        "Claude",
+        "Claude Code",
+        "AI駆動開発",
+        None,
+    ]
+
+    # 優先順（keywords.txt）は依頼どおり。
+    assert names == [
+        "AI駆動開発",
+        "RAG・ナレッジグラフ",
+        "Claude Code",
+        "Codex",
+        "Claude",
+        "ChatGPT",
+        "M365",
+        "AIエージェント",
+    ]
+
+
+def test_同梱のkeywordsでRAGとナレッジグラフが1つの表になる() -> None:
+    """1行にカンマで並べた単語が、1つの表（まとまり）として読めること。"""
+    from src.config import KEYWORDS_FILE, read_keywords
+
+    groups = {group.name: group.words for group in read_keywords(KEYWORDS_FILE)}
+    assert groups["RAG・ナレッジグラフ"] == ("RAG", "ナレッジグラフ")
+    # 1単語だけの行は、その単語だけで検索する。
+    assert groups["M365"] == ("M365",)
 
 
 def test_セクションの見出しは重複しない() -> None:
