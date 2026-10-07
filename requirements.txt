@@ -1,0 +1,13 @@
+# 開発ツール（全プロジェクト共通・品質チェック用）。
+# 製品固有の依存（streamlit, openai 等）は各プロジェクトで追記する。
+black==26.5.1
+ruff==0.15.20
+mypy==2.1.0
+pytest==9.1.1
+pytest-cov==7.1.0
+python-dotenv==1.2.2
+
+# website-maker 固有の依存
+requests==2.34.2          # 各サイトからの取得（タイムアウト・やり直しが素直に書ける）
+Jinja2==3.1.6             # HTML の組み立て（記事タイトルを自動エスケープして壊れを防ぐ）
+types-requests==2.33.0.20261006  # requests の型情報（mypy 用。動作には影響しない）

@@ -1,0 +1,28 @@
+# 機密・環境依存・キャッシュを git 管理外とする。
+#
+# 追跡する（意図的に除外しない）もの：
+#   docs\         … GitHub Pages で公開するページ（index.html と日付ごとのページ）
+#   _user_input\  … ユーザーが渡すファイル。エージェントは読むだけ
+#   .claude\      … settings.json と hooks。動作の前提なので構成管理の対象にする
+
+# 秘密情報（.env.example のみコミットする）
+.env
+
+# 手元用のメモ（公開リポジトリに上げない）
+00_memo/
+
+# Claude Code に入力しない資料
+ClaudeCode対象外/
+
+# 設計時の調査用スクリプトと結果（リポジトリには不要）
+tmp_probe/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

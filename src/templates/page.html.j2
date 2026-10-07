@@ -1,0 +1,76 @@
+{#- 1回分のページ。index.html とバックナンバーで同じものを使う。
+    autoescape を有効にしているので、記事タイトルの < > & は自動で安全な形になる。 -#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header>
+  <h1>AI 関連の注目記事</h1>
+  <p class="period">
+    {{ page.target_date.isoformat() }} 時点 ／ 集めた期間：{{ page.period_start.isoformat() }} 〜 {{ page.target_date.isoformat() }}
+  </p>
+</header>
+
+<main>
+{% for section in page.sections %}
+  <section>
+    <h2>{{ section.heading }}</h2>
+    {% for ranking in section.rankings %}
+      {% if ranking.caption %}<h3>{{ ranking.caption }}</h3>{% endif %}
+
+      {% for note in ranking.notes %}
+        <p class="note">{{ note }}</p>
+      {% endfor %}
+
+      {% if ranking.articles %}
+      <table>
+        <thead>
+          <tr>
+            <th class="col-rank">順位</th>
+            <th class="col-title">記事タイトル</th>
+            <th class="col-site">サイト名</th>
+            <th class="col-score">{{ ranking.score_label }}</th>
+            <th class="col-date">投稿日</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for article in ranking.articles %}
+          <tr>
+            <td class="col-rank">{{ loop.index }}</td>
+            <td class="col-title"><a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a></td>
+            <td class="col-site">{{ article.site }}</td>
+            <td class="col-score">{{ article.score }}</td>
+            <td class="col-date">{{ article.published_at.strftime('%Y-%m-%d') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% elif not ranking.notes %}
+      <p class="empty">この期間に該当する記事はありませんでした。</p>
+      {% endif %}
+    {% endfor %}
+  </section>
+{% endfor %}
+
+{% if backnumbers %}
+  <section class="backnumbers">
+    <h2>過去の回</h2>
+    <ul>
+      {% for item in backnumbers %}
+      <li><a href="{{ item.filename }}">{{ item.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
+</main>
+
+<footer>
+  <p>website-maker で自動生成（{{ generated_at.strftime('%Y-%m-%d %H:%M') }} 日本時間）</p>
+</footer>
+</body>
+</html>

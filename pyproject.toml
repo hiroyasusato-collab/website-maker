@@ -1,0 +1,26 @@
+[project]
+name = "website-maker"
+version = "0.1.0"
+description = "AI 関連の注目記事を Zenn・Qiita・note・はてなブックマーク・Hacker News から週1回集め、いいね数順のランキングページを作って GitHub Pages で公開する"
+requires-python = "==3.12.*"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# 既定（E/F）に import 整列(I)を加える。過度に厳しいルールは PoC では入れない。
+select = ["E", "F", "I"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

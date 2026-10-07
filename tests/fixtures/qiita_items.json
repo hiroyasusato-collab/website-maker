@@ -1,0 +1,33 @@
+[
+  {
+    "title": "Genie Code CLIでDatabricksを操作してみた",
+    "url": "https://qiita.com/taka_yayoi/items/c6de36677c884dae1300",
+    "likes_count": 3,
+    "stocks_count": 0,
+    "created_at": "2026-10-06T09:02:23+09:00",
+    "body": "本文は重いので使わない",
+    "rendered_body": "<p>本文は重いので使わない</p>",
+    "tags": [{"name": "Databricks", "versions": []}]
+  },
+  {
+    "title": "権限で拒否されたフォルダの切り分けメモ",
+    "url": "https://qiita.com/homhom44/items/2786251224ab53c58625",
+    "likes_count": 22,
+    "stocks_count": 4,
+    "created_at": "2026-10-05T08:54:12+09:00",
+    "body": "本文",
+    "tags": [{"name": "ClaudeCode", "versions": []}]
+  },
+  {
+    "title": "期間より古い記事（落ちるべき）",
+    "url": "https://qiita.com/someone/items/0000000000000000",
+    "likes_count": 8888,
+    "created_at": "2026-09-21T08:00:00+09:00",
+    "body": "本文"
+  },
+  {
+    "title": "URL が無い記事（落ちるべき）",
+    "likes_count": 77,
+    "created_at": "2026-10-06T08:00:00+09:00"
+  }
+]

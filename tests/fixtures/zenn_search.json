@@ -1,0 +1,42 @@
+{
+  "articles": [
+    {
+      "id": 663360,
+      "slug": "ea2db6070058b3",
+      "title": "Claude Codeの「Claude Mods」とは？",
+      "path": "/yoshihiko555/articles/ea2db6070058b3",
+      "published_at": "2026-10-05T02:22:57.853+09:00",
+      "liked_count": 46,
+      "bookmarked_count": 11,
+      "user": {"username": "yoshihiko555"}
+    },
+    {
+      "id": 663644,
+      "slug": "ai-coding-loop-formal",
+      "title": "俺のAIプログラミング手法",
+      "path": "/mizchi/articles/ai-coding-loop-formal",
+      "published_at": "2026-10-06T13:59:07.666+09:00",
+      "liked_count": 548,
+      "bookmarked_count": 223,
+      "user": {"username": "mizchi"}
+    },
+    {
+      "id": 600001,
+      "slug": "too-old",
+      "title": "期間より古い記事（落ちるべき）",
+      "path": "/someone/articles/too-old",
+      "published_at": "2026-09-20T10:00:00.000+09:00",
+      "liked_count": 9999,
+      "bookmarked_count": 1,
+      "user": {"username": "someone"}
+    },
+    {
+      "id": 600002,
+      "slug": "no-path",
+      "title": "path が無い記事（落ちるべき）",
+      "published_at": "2026-10-06T10:00:00.000+09:00",
+      "liked_count": 500
+    }
+  ],
+  "next_page": 2
+}

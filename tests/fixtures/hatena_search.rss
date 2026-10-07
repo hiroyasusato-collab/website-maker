@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns="http://purl.org/rss/1.0/"
+ xmlns:content="http://purl.org/rss/1.0/modules/content/"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:hatena="http://www.hatena.ne.jp/info/xmlns#"
+ xmlns:taxo="http://purl.org/rss/1.0/modules/taxonomy/"
+>
+
+<channel rdf:about="https://b.hatena.ne.jp/q/AI">
+<title>&#x672C;&#x6587;&#x300C;AI&#x300D;&#x3092;&#x691C;&#x7D22; - &#x306F;&#x3066;&#x306A;&#x30D6;&#x30C3;&#x30AF;&#x30DE;&#x30FC;&#x30AF;</title>
+<link>https://b.hatena.ne.jp/q/AI</link>
+<items>
+ <rdf:Seq>
+  <rdf:li rdf:resource="https://www.publickey1.jp/blog/26/fdeai7fde.html" />
+ </rdf:Seq>
+</items>
+</channel>
+
+<item rdf:about="https://www.publickey1.jp/blog/26/fdeai7fde.html">
+<title>&#x30AA;&#x30FC;&#x30D7;&#x30F3;AI&#x306E;&#x30A8;&#x30FC;&#x30B8;&#x30A7;&#x30F3;&#x30C8;&#x304C;&#x66B4;&#x8D70;</title>
+<link>https://www.publickey1.jp/blog/26/fdeai7fde.html</link>
+<description>&#x672C;&#x6587;&#x306E;&#x629C;&#x7C8B;</description>
+<dc:date>2026-10-06T07:38:26Z</dc:date>
+<dc:subject>&#x30C6;&#x30AF;&#x30CE;&#x30ED;&#x30B8;&#x30FC;</dc:subject>
+<hatena:bookmarkcount>99</hatena:bookmarkcount>
+</item>
+
+<item rdf:about="https://tech-blog.example.com/entry/claude-code-routines">
+<title>Claude Code &#x306E;&#x904B;&#x7528;&#x3092;&#x6574;&#x3048;&#x308B;</title>
+<link>https://tech-blog.example.com/entry/claude-code-routines</link>
+<dc:date>2026-10-05T06:24:18Z</dc:date>
+<hatena:bookmarkcount>1466</hatena:bookmarkcount>
+</item>
+
+<item rdf:about="https://www.example.com/not-ai-at-all">
+<title>JetBrains reports revenue growth for 2025</title>
+<link>https://www.example.com/not-ai-at-all</link>
+<dc:date>2026-10-05T01:00:00Z</dc:date>
+<hatena:bookmarkcount>500</hatena:bookmarkcount>
+</item>
+
+<item rdf:about="https://www.example.com/no-count">
+<title>&#x30D6;&#x30C3;&#x30AF;&#x30DE;&#x30FC;&#x30AF;&#x6570;&#x304C;&#x7121;&#x3044;AI&#x8A18;&#x4E8B;</title>
+<link>https://www.example.com/no-count</link>
+<dc:date>2026-10-04T01:00:00Z</dc:date>
+</item>
+
+<item rdf:about="https://www.example.com/too-old">
+<title>&#x671F;&#x9593;&#x3088;&#x308A;&#x53E4;&#x3044;AI&#x8A18;&#x4E8B;</title>
+<link>https://www.example.com/too-old</link>
+<dc:date>2026-09-18T01:00:00Z</dc:date>
+<hatena:bookmarkcount>3000</hatena:bookmarkcount>
+</item>
+
+</rdf:RDF>

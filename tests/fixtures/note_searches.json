@@ -1,0 +1,49 @@
+{
+  "data": {
+    "notes": {
+      "is_last_page": false,
+      "total_count": 10000,
+      "contents": [
+        {
+          "id": 111,
+          "type": "TextNote",
+          "status": "published",
+          "name": "Claude Code超入門",
+          "key": "n599ef409bf2c",
+          "publish_at": "2026-10-05T18:00:00.000+09:00",
+          "like_count": 47,
+          "comment_count": 2,
+          "user": {"key": "abc", "urlname": "hoshimama3", "nickname": "ほしママ"}
+        },
+        {
+          "id": 112,
+          "type": "TextNote",
+          "status": "published",
+          "name": "ChatGPTとClaudeからSlack経由でdotsに頼む",
+          "key": "n2324699d457e",
+          "publish_at": "2026-10-04T14:27:00.000+09:00",
+          "like_count": 110,
+          "user": {"key": "def", "urlname": "ai_news_morning"}
+        },
+        {
+          "id": 113,
+          "name": "Claude の期間より古い記事（落ちるべき）",
+          "key": "nold0000old00",
+          "publish_at": "2026-09-15T10:00:00.000+09:00",
+          "like_count": 7777,
+          "user": {"key": "ghi", "urlname": "someone"}
+        },
+        {
+          "id": 114,
+          "name": "Claude のユーザー名が無い記事（URLが作れないので落ちるべき）",
+          "key": "nnouser000000",
+          "publish_at": "2026-10-06T10:00:00.000+09:00",
+          "like_count": 300,
+          "user": {"key": "jkl"}
+        }
+      ]
+    },
+    "users": {"contents": []},
+    "magazines": {"contents": []}
+  }
+}

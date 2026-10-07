@@ -1,0 +1,117 @@
+{
+  "effortLevel": "high",
+  "outputStyle": "explanatory",
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Read(//**)",
+      "Edit(//**)",
+      "Bash",
+      "WebSearch"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*credential*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Edit(**/.env)",
+
+      "WebFetch",
+
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(Invoke-WebRequest:*)",
+      "Bash(Invoke-RestMethod:*)",
+      "Bash(scp:*)",
+      "Bash(ssh:*)",
+      "PowerShell(curl:*)",
+      "PowerShell(wget:*)",
+      "PowerShell(Invoke-WebRequest:*)",
+      "PowerShell(Invoke-RestMethod:*)",
+      "PowerShell(scp:*)",
+      "PowerShell(ssh:*)",
+
+      "Bash(pip install:*)",
+      "Bash(pip uninstall:*)",
+      "Bash(python -m pip:*)",
+      "Bash(npm install:*)",
+      "Bash(winget:*)",
+      "PowerShell(pip install:*)",
+      "PowerShell(pip uninstall:*)",
+      "PowerShell(python -m pip:*)",
+      "PowerShell(npm install:*)",
+      "PowerShell(winget:*)",
+
+      "Bash(streamlit run:*)",
+      "Bash(uvicorn:*)",
+      "Bash(*--watch*)",
+      "PowerShell(streamlit run:*)",
+      "PowerShell(uvicorn:*)",
+      "PowerShell(*--watch*)",
+
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "PowerShell(git commit:*)",
+      "PowerShell(git push:*)",
+      "PowerShell(git reset:*)",
+      "PowerShell(git clean:*)",
+      "PowerShell(git checkout:*)",
+      "PowerShell(git restore:*)",
+
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(del:*)",
+      "Bash(Remove-Item:*)",
+      "PowerShell(rm:*)",
+      "PowerShell(rmdir:*)",
+      "PowerShell(del:*)",
+      "PowerShell(Remove-Item:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/post_edit.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/on_stop.py\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^coder$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/on_stop.py\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
