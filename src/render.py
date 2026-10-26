@@ -15,13 +15,19 @@ from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
-from src.models import Page
+from src.models import KIND_KEYWORD, KIND_RESOURCES, KIND_TREND, Page, Ranking, Section
 from src.timeutil import now_jst
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_NAME = "page.html.j2"
 STYLE_SOURCE = TEMPLATE_DIR / "style.css"
+# 表ごとの表示 ON/OFF の仕組み。外部のファイルを読み込まないよう、ページの中に埋め込む。
+TOGGLE_SCRIPT_SOURCE = TEMPLATE_DIR / "table_toggle.js"
+
+# 表示 ON/OFF の一覧での、参考リンクの欄の名前（ページの見出しと同じ）。
+REFERENCE_LINKS_NAME = "参考リンク"
 
 # バックナンバーのファイル名の形。この形のファイルだけを過去回として一覧に出す。
 BACKNUMBER_PATTERN = re.compile(r"^(\d{4})-(\d{2})-(\d{2})\.html$")
@@ -56,6 +62,62 @@ def find_backnumbers(output_dir: Path, exclude: str | None = None) -> list[Backn
     ]
 
 
+@dataclass(frozen=True)
+class ToggleGroup:
+    """「表示するニュース項目を選ぶ」の一覧の1まとまり（AI業界トレンド・キーワード別など）。
+
+    heading が None のまとまりは見出しを出さない（参考リンクの欄は1つだけなので）。
+    """
+
+    heading: str | None
+    names: list[str]
+
+
+def table_name(section: Section, ranking: Ranking) -> str:
+    """表の名前。表示 ON/OFF はこの名前で表を見分ける。
+
+    AI業界トレンドと技術資料・リポジトリは表の小見出し（「GitHub（スター数順）」など）、
+    キーワード別はセクションの見出し（「Claude Code」など）が名前になる。
+    """
+    return ranking.caption or section.heading
+
+
+def toggle_groups(page: Page) -> list[ToggleGroup]:
+    """「表示するニュース項目を選ぶ」に並べる表の名前を、ページに出る順にまとめて返す。
+
+    ページの並び（AI業界トレンド → 技術資料・リポジトリ → 参考リンク → キーワード別）と
+    そろえる。同じ名前の表は同じ設定で隠れるので、一覧には1回だけ出す。
+    """
+    seen: set[str] = set()
+
+    def unique(names: list[str]) -> list[str]:
+        result = []
+        for name in names:
+            if name not in seen:
+                seen.add(name)
+                result.append(name)
+        return result
+
+    groups: list[ToggleGroup] = []
+
+    def add(heading: str | None, names: list[str]) -> None:
+        names = unique(names)
+        if names:
+            groups.append(ToggleGroup(heading=heading, names=names))
+
+    for kind in (KIND_TREND, KIND_RESOURCES):
+        for section in page.sections:
+            if section.kind == kind:
+                add(section.heading, [table_name(section, r) for r in section.rankings])
+    if page.reference_links:
+        add(None, [REFERENCE_LINKS_NAME])
+    add(
+        "キーワード別",
+        [section.heading for section in page.sections if section.kind == KIND_KEYWORD],
+    )
+    return groups
+
+
 def _environment() -> Environment:
     return Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -80,6 +142,11 @@ def render_html(
         page_title=page_title,
         backnumbers=backnumbers or [],
         generated_at=generated_at or now_jst(),
+        table_name=table_name,
+        toggle_groups=toggle_groups(page),
+        reference_links_name=REFERENCE_LINKS_NAME,
+        # 中身は自分たちで書いた固定の文なので、エスケープせずにそのまま埋め込む。
+        toggle_script=Markup(TOGGLE_SCRIPT_SOURCE.read_text(encoding="utf-8")),
     )
 
 

@@ -151,7 +151,7 @@ def test_トレンドの表を2列の枠に入れる() -> None:
     html = render_html(_page([section]), page_title="テスト")
 
     assert '<div class="grid">' in html
-    assert html.count('<div class="card">') == 2
+    assert html.count('<div class="card" ') == 2
 
 
 def test_キーワード別も2列の枠に入れる() -> None:
@@ -165,7 +165,7 @@ def test_キーワード別も2列の枠に入れる() -> None:
     html = render_html(_page(sections), page_title="テスト")
 
     assert "キーワード別" in html
-    assert html.count('<div class="card">') == 3
+    assert html.count('<div class="card" ') == 3
 
 
 def test_キーワード別の見出しが設定した順に並ぶ() -> None:
@@ -273,8 +273,9 @@ def test_タイトルの記号をエスケープする() -> None:
     )
     html = render_html(_page([section]), page_title="テスト")
 
-    # 生のタグがそのまま入っていないこと。
-    assert "<script>" not in html
+    # 生のタグがそのまま入っていないこと（<script> はページに埋め込んだ表示 ON/OFF の1つだけ）。
+    assert '<script>alert("x")</script>' not in html
+    assert html.count("<script>") == 1
     assert "<b>太字</b>" not in html
     # エスケープされた形で入っていること。
     assert "&lt;script&gt;" in html
@@ -468,7 +469,7 @@ def test_技術資料のセクションが2列の枠に入る() -> None:
     assert "技術資料・リポジトリ" in html
     assert "GitHub（スター数順）" in html
     assert "技術評論社（新着順）" in html
-    assert html.count('<div class="card">') == 2
+    assert html.count('<div class="card" ') == 2
 
 
 def test_技術資料はトレンドの後キーワード別の前に出る() -> None:
@@ -547,7 +548,7 @@ def test_空きは中身の無い枠として出る() -> None:
 
     assert '<div class="spacer" aria-hidden="true"></div>' in html
     # 空きは表ではないので card は2つだけ。
-    assert html.count('<div class="card">') == 2
+    assert html.count('<div class="card" ') == 2
     # 並びは M365 → 空き → ChatGPT。
     assert html.index("<h3>M365</h3>") < html.index('<div class="spacer"')
     assert html.index('<div class="spacer"') < html.index("<h3>ChatGPT</h3>")

@@ -24,3 +24,4 @@
 # それ以外の行は読み飛ばし、実行したときの画面にお知らせが出ます。
 
 Speaker Deck（「AI」の検索結果） | https://speakerdeck.com/search?q=AI
+Speaker Deck（はてなブックマークの新着） | https://b.hatena.ne.jp/site/speakerdeck.com/

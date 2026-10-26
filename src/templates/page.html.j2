@@ -2,7 +2,11 @@
     autoescape を有効にしているので、記事タイトルの < > & は自動で安全な形になる。
 
     表は横に2つずつ並べる（CSS の grid で2列）。画面が狭いときは style.css 側で1列に戻る。
-    表が1つしかない行でも grid が自動で左から詰めるので、特別な指定は要らない。 -#}
+    表が1つしかない行でも grid が自動で左から詰めるので、特別な指定は要らない。
+
+    表ごとの表示 ON/OFF：隠せるもの（表と参考リンクの欄）には data-table に表の名前を付ける。
+    見出しごと消せる枠には table-group を付ける。切り替えはページ末尾に埋め込んだ
+    table_toggle.js が行う。 -#}
 
 {#- 表1つ分の中身（小見出し・取得失敗の説明・表）。card で囲むのは呼ぶ側。 -#}
 {%- macro table_body(ranking) -%}
@@ -44,11 +48,11 @@
 
 {#- 見出し1つの下に表を2列で並べるセクション（AI業界トレンド／技術資料・リポジトリ） -#}
 {%- macro section_block(section) -%}
-  <section>
+  <section class="table-group">
     <h2>{{ section.heading }}</h2>
     <div class="grid">
       {% for ranking in section.rankings %}
-      <div class="card">
+      <div class="card" data-table="{{ table_name(section, ranking) }}">
         {% if ranking.caption %}<h3>{{ ranking.caption }}</h3>{% endif %}
         {{ table_body(ranking) }}
       </div>
@@ -70,6 +74,26 @@
   <p class="period">
     {{ page.target_date.isoformat() }} 時点 ／ 集めた期間：{{ page.period_start.isoformat() }} 〜 {{ page.target_date.isoformat() }}
   </p>
+  {#- 表ごとの表示 ON/OFF。JavaScript が動くまでは hidden で隠しておき、動かないブラウザでは
+      出さない（そのときは全部表示のまま）。普段は畳んでおき、押すと一覧が開く。 -#}
+  {% if toggle_groups %}
+  <details class="table-toggle" id="table-toggle" hidden>
+    <summary>表示するニュース項目を選ぶ<span class="table-toggle-count" data-toggle-count></span></summary>
+    <div class="table-toggle-body">
+      {% for group in toggle_groups %}
+      <fieldset>
+        {% if group.heading %}<legend>{{ group.heading }}</legend>{% endif %}
+        {% for name in group.names %}
+        <label><input type="checkbox" value="{{ name }}" checked> {{ name }}</label>
+        {% endfor %}
+      </fieldset>
+      {% endfor %}
+      <p class="table-toggle-actions"><button type="button" data-toggle-reset>すべて表示に戻す</button></p>
+      <p class="note-plain">この設定は、お使いのブラウザにだけ保存されます（どこにも送りません）。</p>
+      <p class="note-plain" data-toggle-unsaved hidden>このブラウザでは設定を保存できません。ページを開き直すと、すべて表示に戻ります。</p>
+    </div>
+  </details>
+  {% endif %}
 </header>
 
 <main>
@@ -86,8 +110,8 @@
 {#- 参考リンク：取得はせず、手で開くためのリンクを置くだけ（reference_links.txt）。
     1件も無ければ、この欄ごと出さない。 -#}
 {% if page.reference_links %}
-  <section class="reference-links">
-    <h2>参考リンク</h2>
+  <section class="reference-links" data-table="{{ reference_links_name }}">
+    <h2>{{ reference_links_name }}</h2>
     <p class="note-plain">記事の取得は行っていません。リンクを開いてご覧ください。</p>
     <ul>
       {% for link in page.reference_links %}
@@ -101,14 +125,14 @@
     kind == 'gap' は「（空き）」なので、中身の無い枠だけ置いて次を左列に送る -#}
 {% set keyword_sections = page.sections | selectattr('kind', 'in', ['keyword', 'gap']) | list %}
 {% if keyword_sections %}
-  <section>
+  <section class="table-group">
     <h2>キーワード別</h2>
     <div class="grid">
       {% for section in keyword_sections %}
       {% if section.kind == 'gap' %}
       <div class="spacer" aria-hidden="true"></div>
       {% else %}
-      <div class="card">
+      <div class="card" data-table="{{ section.heading }}">
         <h3>{{ section.heading }}</h3>
         {% for ranking in section.rankings %}{{ table_body(ranking) }}{% endfor %}
       </div>
@@ -133,5 +157,8 @@
 <footer>
   <p>website-maker で自動生成（{{ generated_at.strftime('%Y-%m-%d %H:%M') }} 日本時間）</p>
 </footer>
+<script>
+{{ toggle_script }}
+</script>
 </body>
 </html>

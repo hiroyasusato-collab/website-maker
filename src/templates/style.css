@@ -16,6 +16,11 @@
   box-sizing: border-box;
 }
 
+/* 表ごとの表示 ON/OFF で隠したもの。.spacer のように display を指定している要素も確実に消す */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0 auto;
   /* 2列に並べるので、1列だったときより広くとる */
@@ -42,6 +47,58 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   margin: 4px 0 0;
+}
+
+/* ---- 表示するニュース項目を選ぶ（日付の下。普段は畳んでおく） ---- */
+.table-toggle {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.table-toggle summary {
+  cursor: pointer;
+  color: var(--link);
+}
+
+/* 隠している表の数。畳んだままでも見えるよう、summary の横に出す */
+.table-toggle-count {
+  margin-left: 12px;
+  color: var(--text);
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-line);
+  padding: 1px 8px;
+}
+
+.table-toggle-count:empty {
+  display: none;
+}
+
+.table-toggle-body {
+  margin: 8px 0 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--card-line);
+  background: #fafafa;
+}
+
+.table-toggle fieldset {
+  border: 0;
+  margin: 0 0 6px;
+  padding: 0;
+}
+
+.table-toggle legend {
+  padding: 0;
+  font-weight: bold;
+}
+
+.table-toggle label {
+  display: inline-block;
+  margin: 2px 18px 2px 0;
+  cursor: pointer;
+}
+
+.table-toggle-actions {
+  margin: 8px 0 4px;
 }
 
 /* 大見出し（AI業界トレンド／キーワード別）。2列の上にまたがる */
@@ -208,6 +265,10 @@ footer {
 @media print {
   .grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table-toggle {
+    display: none;
   }
 
   .spacer {

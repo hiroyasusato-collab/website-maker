@@ -26,6 +26,9 @@ from tests.conftest import keyword_groups
 from tests.test_pipeline import TREND_WORDS, FakeJson, FakeText
 
 SPEAKER_DECK_URL = "https://speakerdeck.com/search?q=AI"
+# はてなブックマークの「speakerdeck.com の新着」。はてブの検索（取得している）と
+# 同じ b.hatena.ne.jp にあるので、ホスト名ではなく URL そのもので「取得しない」を確かめる。
+HATENA_SPEAKER_DECK_URL = "https://b.hatena.ne.jp/site/speakerdeck.com/"
 
 
 def _write(tmp_path: Path, text: str, encoding: str = "utf-8") -> Path:
@@ -236,6 +239,31 @@ def test_参考リンクには接続しない(tmp_path: Path, reference: datetim
     assert all("speakerdeck.com" not in url for url in called)
 
 
+def test_同梱の参考リンクのどれにも接続しない(tmp_path: Path, reference: datetime) -> None:
+    """はてブの新着ページのように、取得しているサイトと同じホストのリンクも開かない。"""
+    links = read_reference_links(REFERENCE_LINKS_FILE)
+    settings = Settings(
+        keywords=keyword_groups("Claude Code"),
+        trend_words=TREND_WORDS,
+        output_dir=tmp_path / "docs",
+        qiita_token=None,
+        hatena_min_users=10,
+        max_per_site=0,
+        reference_links=links,
+    )
+    fake_json = FakeJson()
+    fake_text = FakeText()
+
+    build_page(settings, fake_json, fake_text, reference)
+
+    called = fake_json.calls + fake_text.calls
+    # はてブの検索には接続している（同じホストでも、別の URL なら区別できていること）。
+    assert any(url.startswith("https://b.hatena.ne.jp/") for url in called)
+    for link in links:
+        assert all(not url.startswith(link.url.rstrip("/")) for url in called)
+    assert all("/site/" not in url for url in called)
+
+
 def test_参考リンクはページにそのまま渡る(tmp_path: Path, reference: datetime) -> None:
     links = [ReferenceLink(label="Speaker Deck", url=SPEAKER_DECK_URL)]
     settings = Settings(
@@ -272,7 +300,12 @@ def test_設定しなければページにも出ない(tmp_path: Path, reference
 def test_同梱のreference_linksにSpeakerDeckが入っている() -> None:
     links = read_reference_links(REFERENCE_LINKS_FILE)
 
-    assert links == [ReferenceLink(label="Speaker Deck（「AI」の検索結果）", url=SPEAKER_DECK_URL)]
+    assert links == [
+        ReferenceLink(label="Speaker Deck（「AI」の検索結果）", url=SPEAKER_DECK_URL),
+        ReferenceLink(
+            label="Speaker Deck（はてなブックマークの新着）", url=HATENA_SPEAKER_DECK_URL
+        ),
+    ]
 
 
 def test_load_settingsが参考リンクを読む(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
