@@ -19,6 +19,7 @@ from markupsafe import Markup
 
 from src.models import KIND_KEYWORD, KIND_RESOURCES, KIND_TREND, Page, Ranking, Section
 from src.timeutil import now_jst
+from src.version import VERSION
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_NAME = "page.html.j2"
@@ -145,6 +146,8 @@ def render_html(
         table_name=table_name,
         toggle_groups=toggle_groups(page),
         reference_links_name=REFERENCE_LINKS_NAME,
+        # どの版のプログラムで作ったページかを、ページの一番下に小さく出す。
+        version=VERSION,
         # 中身は自分たちで書いた固定の文なので、エスケープせずにそのまま埋め込む。
         toggle_script=Markup(TOGGLE_SCRIPT_SOURCE.read_text(encoding="utf-8")),
     )

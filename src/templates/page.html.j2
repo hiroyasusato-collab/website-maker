@@ -156,6 +156,8 @@
 
 <footer>
   <p>website-maker で自動生成（{{ generated_at.strftime('%Y-%m-%d %H:%M') }} 日本時間）</p>
+  {#- どの版のプログラムで作ったかが分かるように。目立たないよう小さく薄い字で一番下に置く -#}
+  <p class="version">バージョン {{ version }}</p>
 </footer>
 <script>
 {{ toggle_script }}

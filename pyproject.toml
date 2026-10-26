@@ -1,6 +1,7 @@
 [project]
 name = "website-maker"
-version = "0.1.0"
+# バージョン番号はここ1か所だけに書く（ページの一番下に出る）。上げ方と変更点は CHANGELOG.md
+version = "1.1.0"
 description = "AI 関連の注目記事を Zenn・Qiita・note・はてなブックマーク・Hacker News から週1回集め、いいね数順のランキングページを作って GitHub Pages で公開する"
 requires-python = "==3.12.*"
 

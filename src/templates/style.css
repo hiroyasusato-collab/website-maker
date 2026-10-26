@@ -248,6 +248,13 @@ footer {
   font-size: 12px;
 }
 
+/* プログラムのバージョン。ページの一番下に、目立たないよう小さく薄い字で出す */
+footer .version {
+  margin: 0;
+  color: #999;
+  font-size: 11px;
+}
+
 /* 画面が狭いとき（スマホ・タブレット縦など）は1列に戻す */
 @media (max-width: 860px) {
   .grid {
