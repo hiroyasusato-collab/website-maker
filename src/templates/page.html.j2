@@ -67,10 +67,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page_title }}</title>
 <link rel="stylesheet" href="assets/style.css">
+{#- サイトのアイコン。今のブラウザは SVG を、SVG を使えないブラウザは ICO を使う。
+    公開先がサブフォルダでも出るよう、先頭に / を付けない相対パスで書く。 -#}
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
 <header>
-  <h1>AI 関連の注目記事</h1>
+  <h1>{{ site_name }}</h1>
   <p class="period">
     {{ page.target_date.isoformat() }} 時点 ／ 集めた期間：{{ page.period_start.isoformat() }} 〜 {{ page.target_date.isoformat() }}
   </p>

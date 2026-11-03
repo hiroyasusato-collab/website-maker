@@ -242,7 +242,12 @@ def test_切り替えの仕組みはページに埋め込む() -> None:
 
 def test_ページは外部のファイルを読み込まない() -> None:
     html = _html()
-    assert re.findall(r"<link [^>]*>", html) == ['<link rel="stylesheet" href="assets/style.css">']
+    # 読み込むのは、ページと一緒に置く assets\ の中の見た目とアイコンだけ。
+    assert re.findall(r'<link [^>]*href="([^"]*)"', html) == [
+        "assets/style.css",
+        "assets/favicon.ico",
+        "assets/favicon.svg",
+    ]
     assert "<script src" not in html
     assert "<iframe" not in html
     assert "@import" not in STYLE_SOURCE.read_text(encoding="utf-8")

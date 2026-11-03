@@ -4,6 +4,7 @@
     docs\\index.html        最新回の中身 ＋ 下に過去回へのリンク一覧
     docs\\YYYY-MM-DD.html   バックナンバー（実行ごとに増える）
     docs\\assets\\style.css  見た目
+    docs\\assets\\favicon.svg・favicon.ico  サイトのアイコン（ブラウザのタブに出る）
     docs\\.nojekyll          GitHub に余計な変換をさせないための空ファイル
 """
 
@@ -17,9 +18,14 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from src.favicon import favicon_ico, favicon_svg
 from src.models import KIND_KEYWORD, KIND_RESOURCES, KIND_TREND, Page, Ranking, Section
 from src.timeutil import now_jst
 from src.version import VERSION
+
+# 利用者に見せるサイト名。ブラウザのタブとページの見出しに出す。
+# プログラム・フォルダ・URL の名前（website-maker）とは別のもの。
+SITE_NAME = "週刊AIトレンドニュース"
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_NAME = "page.html.j2"
@@ -141,6 +147,7 @@ def render_html(
     return template.render(
         page=page,
         page_title=page_title,
+        site_name=SITE_NAME,
         backnumbers=backnumbers or [],
         generated_at=generated_at or now_jst(),
         table_name=table_name,
@@ -175,13 +182,21 @@ def write_site(page: Page, output_dir: Path) -> list[Path]:
     style_target.write_text(STYLE_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
     written.append(style_target)
 
+    # サイトのアイコン。ページからは相対パス（assets/…）で読むので、公開先がサイトの直下でも
+    # サブフォルダでも表示される。毎回書き直すので、ページを作り直してもアイコンは残る。
+    svg_target = assets_dir / "favicon.svg"
+    svg_target.write_text(favicon_svg(), encoding="utf-8")
+    ico_target = assets_dir / "favicon.ico"
+    ico_target.write_bytes(favicon_ico())
+    written.extend([svg_target, ico_target])
+
     date_label = page.target_date.isoformat()
 
     # バックナンバー（この回の固定ページ）
     dated_name = f"{date_label}.html"
     dated_path = output_dir / dated_name
     dated_path.write_text(
-        render_html(page, page_title=f"AI 関連の注目記事 {date_label}"),
+        render_html(page, page_title=f"{SITE_NAME} {date_label}"),
         encoding="utf-8",
     )
     written.append(dated_path)
@@ -191,7 +206,7 @@ def write_site(page: Page, output_dir: Path) -> list[Path]:
     index_path.write_text(
         render_html(
             page,
-            page_title="AI 関連の注目記事",
+            page_title=SITE_NAME,
             backnumbers=find_backnumbers(output_dir, exclude=dated_name),
         ),
         encoding="utf-8",
